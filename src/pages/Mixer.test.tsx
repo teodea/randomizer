@@ -284,6 +284,80 @@ describe('Mixer', () => {
     })
   })
 
+  describe('order', () => {
+    const sourceOf = (line: string | null) => line?.match(/^Song (\w)/)?.[1]
+
+    async function selectTwo(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(await screen.findByRole('checkbox', { name: /morning/i }))
+      await user.click(screen.getByRole('checkbox', { name: /evening/i }))
+      await user.click(screen.getByRole('radio', { name: /balanced/i }))
+    }
+
+    it('plays tracks in random order, spreading artists, by default', async () => {
+      renderMixer()
+
+      expect(await screen.findByRole('radio', { name: /random/i })).toBeChecked()
+      expect(screen.getByRole('checkbox', { name: /spread artists/i })).toBeChecked()
+      expect(screen.queryByRole('spinbutton', { name: /block size/i })).not.toBeInTheDocument()
+    })
+
+    it('alternates the sources', async () => {
+      const user = renderMixer()
+      await selectTwo(user)
+
+      await user.click(screen.getByRole('radio', { name: /alternate/i }))
+      await user.click(screen.getByRole('button', { name: /generate/i }))
+
+      await screen.findByText('10 tracks')
+      expect(mixOrder().map(sourceOf)).toEqual(['m', 'e', 'm', 'e', 'm', 'e', 'm', 'e', 'm', 'm'])
+    })
+
+    it('plays blocks of the chosen size', async () => {
+      const user = renderMixer()
+      await selectTwo(user)
+
+      await user.click(screen.getByRole('radio', { name: /blocks/i }))
+      const size = screen.getByRole('spinbutton', { name: /block size/i })
+      await user.clear(size)
+      await user.type(size, '2')
+      await user.click(screen.getByRole('button', { name: /generate/i }))
+
+      await screen.findByText('10 tracks')
+      expect(mixOrder().map(sourceOf)).toEqual(['m', 'm', 'e', 'e', 'm', 'm', 'e', 'e', 'm', 'm'])
+    })
+
+    it('needs a whole block size of at least 1', async () => {
+      const user = renderMixer()
+      await selectTwo(user)
+
+      await user.click(screen.getByRole('radio', { name: /blocks/i }))
+      await user.clear(screen.getByRole('spinbutton', { name: /block size/i }))
+
+      expect(screen.getByRole('button', { name: /generate/i })).toBeDisabled()
+    })
+
+    it('keeps the same artist from playing back-to-back, unless turned off', async () => {
+      const byArtist = (id: string, artist: string, size: number): FakeSource => ({
+        ...fakeSource(id, id === 'm' ? 'Morning' : 'Evening', 0),
+        tracks: Array.from({ length: size }, (_, i) => ({ ...track(`${id}${i + 1}`), artists: [artist] })),
+      })
+      const user = renderMixer(createFakeGateway([byArtist('m', 'Solo', 4), byArtist('e', 'Duo', 4)]))
+      await selectTwo(user)
+      await user.click(screen.getByRole('radio', { name: /blocks/i }))
+      await user.clear(screen.getByRole('spinbutton', { name: /block size/i }))
+      await user.type(screen.getByRole('spinbutton', { name: /block size/i }), '2')
+
+      await user.click(screen.getByRole('button', { name: /generate/i }))
+      await screen.findByText('8 tracks')
+      expect(mixOrder().map(sourceOf)).toEqual(['m', 'e', 'm', 'e', 'm', 'e', 'm', 'e'])
+
+      await user.click(screen.getByRole('checkbox', { name: /spread artists/i }))
+      await user.click(screen.getByRole('button', { name: /regenerate/i }))
+      await screen.findByText('8 tracks')
+      expect(mixOrder().map(sourceOf)).toEqual(['m', 'm', 'e', 'e', 'm', 'm', 'e', 'e'])
+    })
+  })
+
   it('shows each source with its cover, owner and track count', async () => {
     renderMixer(
       createFakeGateway([

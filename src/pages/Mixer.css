@@ -159,3 +159,7 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+.order-settings {
+  margin-top: 0.5rem;
+}

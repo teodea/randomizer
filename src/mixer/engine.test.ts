@@ -303,3 +303,213 @@ describe('buildMix pool', () => {
     })
   })
 })
+
+describe('buildMix order', () => {
+  const sourceIds = (mix: MixItem[]) => mix.map((item) => item.sourceId)
+
+  /** Lengths of the runs of consecutive tracks from the same source. */
+  function runs(mix: MixItem[]): number[] {
+    const lengths: number[] = []
+    mix.forEach((item, i) => {
+      if (i > 0 && item.sourceId === mix[i - 1].sourceId) lengths[lengths.length - 1]++
+      else lengths.push(1)
+    })
+    return lengths
+  }
+
+  it('alternate makes the sources take turns in selection order', () => {
+    const mix = buildMix(
+      [source('a', 3), source('b', 3), source('c', 3)],
+      { weighting: { mode: 'balanced' }, order: { mode: 'alternate' } },
+      createRng(1),
+    )
+
+    expect(sourceIds(mix)).toEqual(['a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c'])
+  })
+
+  it('alternate keeps taking turns among the sources left when one runs out', () => {
+    const mix = buildMix(
+      [source('a', 2), source('b', 4), source('c', 3)],
+      { weighting: { mode: 'balanced' }, order: { mode: 'alternate' } },
+      createRng(1),
+    )
+
+    expect(sourceIds(mix)).toEqual(['a', 'b', 'c', 'a', 'b', 'c', 'b', 'c', 'b'])
+  })
+
+  it('alternate still picks random tracks within each source', () => {
+    const sources = [source('a', 10), source('b', 10)]
+    const options: MixOptions = { weighting: { mode: 'balanced' }, order: { mode: 'alternate' } }
+    const ids = (seed: number) => buildMix(sources, options, createRng(seed)).map((item) => item.track.id)
+
+    expect(ids(1)).not.toEqual(ids(2))
+  })
+
+  it.each<[string, MixOptions['order']]>([
+    ['alternate', { mode: 'alternate' }],
+    ['blocks', { mode: 'blocks', size: 3 }],
+  ])('%s respects custom weights', (_, order) => {
+    const mix = buildMix(
+      [source('a', 100), source('b', 100)],
+      { weighting: { mode: 'custom', weights: { a: 70, b: 30 } }, order },
+      createRng(1),
+    ).slice(0, 60)
+
+    expect(share(mix, 'a')).toBeCloseTo(0.7, 1)
+  })
+
+  it('alternate spreads a 70/30 split evenly instead of bunching it', () => {
+    const mix = buildMix(
+      [source('a', 100), source('b', 100)],
+      { weighting: { mode: 'custom', weights: { a: 70, b: 30 } }, order: { mode: 'alternate' } },
+      createRng(1),
+    ).slice(0, 60)
+
+    // b plays alone between runs of a, and a never plays more than three times in a row.
+    expect(Math.max(...runs(mix))).toBeLessThanOrEqual(3)
+    for (let i = 1; i < mix.length; i++) {
+      if (mix[i].sourceId === 'b') expect(mix[i - 1].sourceId).toBe('a')
+    }
+  })
+
+  it('alternate with uniform weighting follows each source’s size', () => {
+    const mix = buildMix([source('a', 30), source('b', 10)], { order: { mode: 'alternate' } }, createRng(1))
+
+    expect(share(mix.slice(0, 20), 'a')).toBeCloseTo(0.75, 1)
+  })
+
+  it('alternate plays a zero-weight source only after the others run out', () => {
+    const mix = buildMix(
+      [source('a', 2), source('b', 3)],
+      { weighting: { mode: 'custom', weights: { a: 0, b: 1 } }, order: { mode: 'alternate' } },
+      createRng(1),
+    )
+
+    expect(sourceIds(mix)).toEqual(['b', 'b', 'b', 'a', 'a'])
+  })
+
+  it('blocks play runs of the chosen size, taking turns', () => {
+    const mix = buildMix(
+      [source('a', 9), source('b', 9), source('c', 9)],
+      { weighting: { mode: 'balanced' }, order: { mode: 'blocks', size: 3 } },
+      createRng(1),
+    )
+
+    expect(runs(mix)).toEqual(Array(9).fill(3))
+    expect(sourceIds(mix).slice(0, 9)).toEqual(['a', 'a', 'a', 'b', 'b', 'b', 'c', 'c', 'c'])
+  })
+
+  it('blocks respect weights by giving a heavier source more blocks, never longer ones', () => {
+    const mix = buildMix(
+      [source('a', 100), source('b', 100)],
+      { weighting: { mode: 'custom', weights: { a: 70, b: 30 } }, order: { mode: 'blocks', size: 4 } },
+      createRng(1),
+    ).slice(0, 80)
+
+    expect(runs(mix).every((length) => length % 4 === 0)).toBe(true)
+  })
+
+  it('blocks end short when a source runs out or the fixed length is reached', () => {
+    const mix = buildMix(
+      [source('a', 5), source('b', 5)],
+      { weighting: { mode: 'balanced' }, order: { mode: 'blocks', size: 3 }, pool: { length: 9 } },
+      createRng(1),
+    )
+
+    expect(sourceIds(mix)).toEqual(['a', 'a', 'a', 'b', 'b', 'b', 'a', 'a', 'b'])
+  })
+
+  it.each<[string, MixOptions['order']]>([
+    ['alternate', { mode: 'alternate' }],
+    ['blocks', { mode: 'blocks', size: 4 }],
+  ])('%s still uses every eligible track', (_, order) => {
+    const sources = [source('a', 7), source('b', 3), source('c', 12)]
+
+    const mix = buildMix(sources, { order }, createRng(5))
+
+    expect(mix.map((item) => item.track.id).sort()).toEqual(sources.flatMap((s) => s.tracks.map((t) => t.id)).sort())
+  })
+})
+
+describe('buildMix spread artists', () => {
+  const artistOf = (item: MixItem) => item.track.artists[0]
+
+  /** How many times the same artist plays twice in a row. */
+  function backToBack(mix: MixItem[]): number {
+    return mix.filter((item, i) => i > 0 && artistOf(item) === artistOf(mix[i - 1])).length
+  }
+
+  /** The fewest back-to-back repeats any order of these tracks could have. */
+  function unavoidable(mix: MixItem[]): number {
+    const counts = new Map<string, number>()
+    for (const item of mix) counts.set(artistOf(item), (counts.get(artistOf(item)) ?? 0) + 1)
+    const most = Math.max(0, ...counts.values())
+    return Math.max(0, most - (mix.length - most) - 1)
+  }
+
+  /** A source whose tracks are by only a few artists, so repeats are likely. */
+  function crowded(id: string, size: number, artists: string[], rng: () => number): MixSource {
+    return {
+      id,
+      tracks: Array.from({ length: size }, (_, i) =>
+        track(`${id}${i + 1}`, artists[Math.floor(rng() * artists.length)]),
+      ),
+    }
+  }
+
+  it('leaves no avoidable back-to-back artist and keeps exactly the same tracks', () => {
+    const orders: MixOptions['order'][] = [{ mode: 'random' }, { mode: 'alternate' }, { mode: 'blocks', size: 3 }]
+    for (let seed = 1; seed <= 100; seed++) {
+      const rng = createRng(seed * 7919)
+      const sources = [
+        crowded('a', 1 + Math.floor(rng() * 20), ['X', 'Y', 'Z'], rng),
+        crowded('b', 1 + Math.floor(rng() * 20), ['X', 'W'], rng),
+      ]
+      const order = orders[seed % orders.length]
+
+      const plain = buildMix(sources, { order }, createRng(seed))
+      const spread = buildMix(sources, { order, spreadArtists: true }, createRng(seed))
+
+      expect(backToBack(spread)).toBe(unavoidable(spread))
+      expect(spread.map((item) => item.track.id).sort()).toEqual(plain.map((item) => item.track.id).sort())
+    }
+  })
+
+  it('keeps as few repeats as possible when one artist dominates', () => {
+    const tracks = [...Array.from({ length: 6 }, (_, i) => track(`x${i}`, 'X')), track('y', 'Y'), track('z', 'Z')]
+
+    const mix = buildMix([{ id: 'a', tracks }], { spreadArtists: true }, createRng(1))
+
+    // Six X tracks and two others: X–?–X–?–X, then three more X in a row, is the best possible.
+    expect(backToBack(mix)).toBe(3)
+    expect(mix).toHaveLength(8)
+  })
+
+  it('treats artist names that differ only in case or accents as the same artist', () => {
+    const tracks = [track('1', 'Beyoncé'), track('2', 'BEYONCE'), track('3', 'Other')]
+
+    for (let seed = 1; seed <= 20; seed++) {
+      const mix = buildMix([{ id: 'a', tracks }], { spreadArtists: true }, createRng(seed))
+      expect(mix[1].track.id).toBe('3')
+    }
+  })
+
+  it('only moves tracks when it has to, so an already spread order is left alone', () => {
+    const sources = [source('a', 5), source('b', 5)]
+    const options: MixOptions = { weighting: { mode: 'balanced' }, order: { mode: 'alternate' } }
+
+    expect(buildMix(sources, { ...options, spreadArtists: true }, createRng(4))).toEqual(
+      buildMix(sources, options, createRng(4)),
+    )
+  })
+
+  it('is off unless asked for', () => {
+    const tracks = [
+      ...Array.from({ length: 4 }, (_, i) => track(`x${i}`, 'X')),
+      ...Array.from({ length: 4 }, (_, i) => track(`y${i}`, 'Y')),
+    ]
+    const mixes = Array.from({ length: 30 }, (_, seed) => buildMix([{ id: 'a', tracks }], {}, createRng(seed + 1)))
+
+    expect(mixes.some((mix) => backToBack(mix) > unavoidable(mix))).toBe(true)
+  })
+})

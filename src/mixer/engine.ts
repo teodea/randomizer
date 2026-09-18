@@ -37,12 +37,28 @@ export type Weighting =
   | { mode: 'custom'; weights: Record<string, number> }
 
 /**
+ * How the drawn tracks are arranged. Every mode follows the weighting:
+ * - `random`: each track's source is drawn at random, as likely as its weight.
+ * - `alternate`: sources take turns (A, B, C…); a heavier source gets more turns, spread out evenly.
+ * - `blocks`: like `alternate`, but each turn plays `size` tracks from the source in a row.
+ *
+ * In every mode the tracks within a source come in random order.
+ */
+export type Order = { mode: 'random' } | { mode: 'alternate' } | { mode: 'blocks'; size: number }
+
+/**
  * How to build the mix. With no options, every eligible track is used once,
  * weighted uniformly (each track equally likely) and in random order.
  */
 export interface MixOptions {
   pool?: PoolOptions
   weighting?: Weighting
+  order?: Order
+  /**
+   * Reorder the finished mix so the same primary artist doesn't play twice in a row, wherever
+   * that can be avoided. Tracks move as little as needed; none are added or dropped.
+   */
+  spreadArtists?: boolean
 }
 
 export interface MixItem {
@@ -55,23 +71,52 @@ export interface MixItem {
 export function buildMix(sources: MixSource[], options: MixOptions, rng: Rng): MixItem[] {
   const pool = options.pool ?? {}
   const weighting = options.weighting ?? { mode: 'uniform' }
+  const order = options.order ?? { mode: 'random' }
   const remaining = eligibleSources(sources, pool).map((source) => ({
     id: source.id,
     weight: fixedWeight(weighting, source.id),
     tracks: shuffle(source.tracks, rng),
+    // Turn-taking credit for `alternate` and `blocks` (smooth weighted round-robin).
+    credit: 0,
   }))
 
   const mix: MixItem[] = []
   for (;;) {
     const live = remaining.filter((source) => source.tracks.length > 0)
-    if (live.length === 0 || mix.length === pool.length) return mix
+    if (live.length === 0 || mix.length === pool.length) break
     // Uniform weighs each source by what it has left, which makes every remaining track equally likely.
     let weights = live.map((source) => source.weight ?? source.tracks.length)
     // Only zero-weight sources are left: they share out what remains equally.
     if (weights.every((weight) => weight === 0)) weights = weights.map(() => 1)
-    const source = live[pick(weights, rng)]
-    mix.push({ track: source.tracks.pop()!, sourceId: source.id })
+
+    if (order.mode === 'random') {
+      const source = live[pick(weights, rng)]
+      mix.push({ track: source.tracks.pop()!, sourceId: source.id })
+      continue
+    }
+    const source = live[takeTurn(live, weights)]
+    const run = order.mode === 'blocks' ? Math.max(1, Math.floor(order.size)) : 1
+    for (let i = 0; i < run && source.tracks.length > 0 && mix.length !== pool.length; i++) {
+      mix.push({ track: source.tracks.pop()!, sourceId: source.id })
+    }
   }
+  return options.spreadArtists ? spreadArtists(mix) : mix
+}
+
+/**
+ * Smooth weighted round-robin: every source earns its weight in credit, the richest plays and pays
+ * back the total. Equal weights take strict turns in selection order; 70/30 gives A B A A B A A…,
+ * each source's turns as evenly spaced as the weights allow.
+ */
+function takeTurn(live: { credit: number }[], weights: number[]): number {
+  const total = weights.reduce((sum, weight) => sum + weight, 0)
+  let chosen = 0
+  live.forEach((source, i) => {
+    source.credit += weights[i]
+    if (source.credit > live[chosen].credit) chosen = i
+  })
+  live[chosen].credit -= total
+  return chosen
 }
 
 /** A source's weight, fixed for the whole mix; `undefined` means "weigh by tracks left" (uniform). */
@@ -159,6 +204,40 @@ function normalise(text: string): string {
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim()
+}
+
+/**
+ * Reorders the mix so no primary artist plays twice in a row unless it can't be helped. Walking
+ * the mix, each slot takes the earliest remaining track by a different artist than the one
+ * before, except that an artist holding more than half of what is left must go now, or it
+ * would be forced into back-to-back repeats later. This gives the fewest repeats possible and
+ * keeps the original order wherever it was already fine.
+ */
+function spreadArtists(mix: MixItem[]): MixItem[] {
+  const artist = (item: MixItem) => normalise(item.track.artists[0] ?? '') || `track:${item.track.id}`
+  const left = new Map<string, number>()
+  for (const item of mix) left.set(artist(item), (left.get(artist(item)) ?? 0) + 1)
+
+  const remaining = [...mix]
+  const result: MixItem[] = []
+  let previous: string | undefined
+  while (remaining.length > 0) {
+    let crowding: string | undefined
+    for (const [name, count] of left) {
+      if (name !== previous && 2 * count > remaining.length) crowding = name
+    }
+    let index = remaining.findIndex((item) =>
+      crowding === undefined ? artist(item) !== previous : artist(item) === crowding,
+    )
+    // Every track left is by the artist that just played: the repeat can't be avoided.
+    if (index === -1) index = 0
+
+    const [item] = remaining.splice(index, 1)
+    previous = artist(item)
+    left.set(previous, left.get(previous)! - 1)
+    result.push(item)
+  }
+  return result
 }
 
 /** Fisher–Yates: every order is equally likely, so every track is equally likely at each position. */

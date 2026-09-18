@@ -8,6 +8,8 @@ import { equalShares, setShare, type Shares } from '../mixer/shares'
 import { SourceUnavailableError } from '../spotify/errors'
 import type { SpotifyGateway } from '../spotify/gateway'
 import type { Source } from '../spotify/types'
+import { defaultOrderForm, toOrder } from './orderForm'
+import { OrderSettings } from './OrderSettings'
 import { defaultPoolForm, toPoolOptions } from './poolForm'
 import { PoolSettings } from './PoolSettings'
 import './Mixer.css'
@@ -51,6 +53,7 @@ export function Mixer({
   const [generating, setGenerating] = useState(false)
   const [generateFailed, setGenerateFailed] = useState(false)
   const [poolForm, setPoolForm] = useState(defaultPoolForm)
+  const [orderForm, setOrderForm] = useState(defaultOrderForm)
   // Bumped whenever the selection changes, so a mix built for an older selection is discarded.
   const selectionVersion = useRef(0)
 
@@ -69,6 +72,7 @@ export function Mixer({
     .map((id) => sources?.find((source) => source.id === id))
     .filter((source) => source !== undefined)
   const pool = toPoolOptions(poolForm)
+  const order = toOrder(orderForm)
 
   function changeSelection(next: string[]) {
     selectionVersion.current++
@@ -90,7 +94,7 @@ export function Mixer({
   }
 
   async function generate() {
-    if (!pool) return
+    if (!pool || !order) return
     const weighting: Weighting =
       weightingMode === 'custom' ? { mode: 'custom', weights: shares } : { mode: weightingMode }
     const version = selectionVersion.current
@@ -116,7 +120,8 @@ export function Mixer({
         setSelectedIds(mixSources.map(({ id }) => id))
         setLeftOut(selected.filter((source) => unavailable.includes(source.id)))
       }
-      setMix(mixSources.length > 0 ? buildMix(mixSources, { pool, weighting }, createRng(newSeed())) : null)
+      const options = { pool, weighting, order, spreadArtists: orderForm.spreadArtists }
+      setMix(mixSources.length > 0 ? buildMix(mixSources, options, createRng(newSeed())) : null)
     } catch {
       if (version === selectionVersion.current) setGenerateFailed(true)
     } finally {
@@ -224,9 +229,15 @@ export function Mixer({
           ))}
       </section>
 
+      <OrderSettings form={orderForm} onChange={setOrderForm} />
+
       <div>
         <p>
-          <button type="button" disabled={selected.length < MIN_SOURCES || !pool || generating} onClick={generate}>
+          <button
+            type="button"
+            disabled={selected.length < MIN_SOURCES || !pool || !order || generating}
+            onClick={generate}
+          >
             {mix ? 'Regenerate' : 'Generate mix'}
           </button>
         </p>
@@ -237,6 +248,7 @@ export function Mixer({
             tracks must be a whole number.
           </p>
         )}
+        {!order && <p className="muted">Check the block size: it must be a whole number of tracks.</p>}
         {generateFailed && <p role="alert">Couldn&rsquo;t read the tracks. Try again.</p>}
         <p role="status">{leftOut.length > 0 && unavailableNotice(leftOut)}</p>
       </div>
