@@ -19,13 +19,13 @@ export function ReshuffleControls({
   onReshuffle,
 }: ReshuffleControlsProps) {
   return (
-    <div className="reshuffle">
+    <div>
       {simulatedPosition !== null && (
         <p className="muted">
           Simulated playback: track {simulatedPosition + 1} of {mixLength}.
         </p>
       )}
-      <p className="send-mix-actions">
+      <p className="reshuffle-actions">
         {simulatedPosition !== null && (
           <button type="button" disabled={disabled || simulatedPosition >= mixLength - 1} onClick={onNextTrack}>
             Next track

@@ -159,18 +159,18 @@ export function Mixer({
     }
   }
 
-  /** Where the mix is playing on Spotify, or a reason to give the user instead. */
-  async function findPlaying(current: MixItem[]): Promise<number | string> {
-    if (sendMix.state.step !== 'sent') return NOT_PLAYING
+  /** Where the mix is playing on Spotify, or null when Spotify isn't playing it. */
+  async function findPlaying(current: MixItem[]): Promise<number | null> {
+    if (sendMix.state.step !== 'sent') return null
     const playlistId = sendMix.state.playlistId
     const playback = await gateway.getPlaybackState()
-    if (!playback || playback.playlistId !== playlistId || !playback.trackId) return NOT_PLAYING
+    if (!playback || playback.playlistId !== playlistId || !playback.trackId) return null
     // A track can be in the mix twice: prefer the copy at or after the last known position.
-    const ids = current.map(({ track }) => track.id)
+    const ids = trackIds(current)
     const from = playingIndex ?? 0
     const later = ids.indexOf(playback.trackId, from)
     const position = later === -1 ? ids.indexOf(playback.trackId) : later
-    return position === -1 ? NOT_PLAYING : position
+    return position === -1 ? null : position
   }
 
   async function reshuffle() {
@@ -182,15 +182,23 @@ export function Mixer({
     try {
       const position = canSend ? await findPlaying(current) : (playingIndex ?? 0)
       if (version !== selectionVersion.current) return
-      if (typeof position === 'string') return setReshuffleNotice(position)
+      if (position === null) {
+        setReshuffleNotice(NOT_PLAYING)
+        return
+      }
       const rest = current.length - position - 1
-      if (rest === 0) return setReshuffleNotice(LAST_TRACK)
+      if (rest === 0) {
+        setReshuffleNotice(LAST_TRACK)
+        return
+      }
 
       const next = reshuffleRemaining(current, position, mixOptions, createRng(newSeed()))
       if (canSend) {
-        const ids = (items: MixItem[]) => items.map(({ track }) => track.id)
-        const kept = ids(current.slice(0, position + 1))
-        const written = await sendMix.replaceTail(kept, ids(current.slice(position + 1)), ids(next.slice(position + 1)))
+        const written = await sendMix.replaceTail(
+          trackIds(current.slice(0, position + 1)),
+          trackIds(current.slice(position + 1)),
+          trackIds(next.slice(position + 1)),
+        )
         if (!written || version !== selectionVersion.current) return
       }
       setMix(next)
@@ -339,7 +347,7 @@ export function Mixer({
                 onSend={() => {
                   setPlayingIndex(null)
                   setReshuffleNotice(null)
-                  sendMix.send(mix.map(({ track }) => track.id))
+                  sendMix.send(trackIds(mix))
                 }}
                 onRetryPlayback={sendMix.retryPlayback}
               />
@@ -370,6 +378,10 @@ export function Mixer({
       )}
     </main>
   )
+}
+
+function trackIds(items: MixItem[]): string[] {
+  return items.map(({ track }) => track.id)
 }
 
 const NOT_PLAYING = 'Your mix isn’t playing on Spotify right now. Start it there, then try again.'

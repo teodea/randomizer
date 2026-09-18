@@ -70,7 +70,7 @@ export interface MixItem {
 /** Builds a mix. Pure: the same sources, options and seed give the same result. */
 export function buildMix(sources: MixSource[], options: MixOptions, rng: Rng): MixItem[] {
   const pool = options.pool ?? {}
-  return arrange(eligibleSources(sources, pool), options, rng, pool.length)
+  return arrange(eligibleSources(sources, pool), options, rng, { length: pool.length })
 }
 
 /**
@@ -89,14 +89,19 @@ export function reshuffleRemaining(mix: MixItem[], position: number, options: Mi
     id,
     tracks: rest.filter((item) => item.sourceId === id).map((item) => item.track),
   }))
-  return [...kept, ...arrange(sources, options, rng, undefined, kept.at(-1)?.track)]
+  return [...kept, ...arrange(sources, options, rng, { playedLast: kept.at(-1)?.track })]
 }
 
 /**
  * The weighting and order stages over sources already through the pool: draws up to `length`
  * tracks (all of them without it), then spreads artists if asked, starting after `playedLast`.
  */
-function arrange(sources: MixSource[], options: MixOptions, rng: Rng, length?: number, playedLast?: Track): MixItem[] {
+function arrange(
+  sources: MixSource[],
+  options: MixOptions,
+  rng: Rng,
+  { length, playedLast }: { length?: number; playedLast?: Track } = {},
+): MixItem[] {
   const weighting = options.weighting ?? { mode: 'uniform' }
   const order = options.order ?? { mode: 'random' }
   const remaining = sources.map((source) => ({

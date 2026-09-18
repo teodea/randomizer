@@ -168,7 +168,8 @@
   width: 100%;
 }
 
-.send-mix-actions {
+.send-mix-actions,
+.reshuffle-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
