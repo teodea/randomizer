@@ -1,12 +1,8 @@
 import type { SpotifyGateway } from './gateway'
 import type { Source, Track } from './types'
 
-export interface FakeSource {
-  id: string
-  name: string
-  owner: string
-  tracks: Track[]
-}
+/** A source together with its tracks; the fake derives the track count from them. */
+export type FakeSource = Omit<Source, 'trackCount'> & { tracks: Track[] }
 
 /** An in-memory gateway over the given sources. */
 export function createFakeGateway(sources: FakeSource[]): SpotifyGateway {

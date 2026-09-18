@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { createFakeGateway, type FakeSource } from '../spotify/fakeGateway'
+import type { SpotifyGateway } from '../spotify/gateway'
 import type { Track } from '../spotify/types'
 import { Mixer } from './Mixer'
 
@@ -14,12 +15,13 @@ function fakeSource(id: string, name: string, size: number): FakeSource {
   return { id, name, owner: 'Tester', tracks: Array.from({ length: size }, (_, i) => track(`${id}${i + 1}`)) }
 }
 
-function renderMixer() {
-  const gateway = createFakeGateway([
+function renderMixer(
+  gateway: SpotifyGateway = createFakeGateway([
     fakeSource('m', 'Morning', 6),
     fakeSource('e', 'Evening', 4),
     fakeSource('w', 'Weekend', 3),
-  ])
+  ]),
+) {
   let seed = 0
   render(
     <MemoryRouter>
@@ -89,5 +91,29 @@ describe('Mixer', () => {
     const second = mixOrder()
     expect([...second].sort()).toEqual([...first].sort())
     expect(second).not.toEqual(first)
+  })
+
+  it('reports a failed track read and lets the user try again', async () => {
+    const fake = createFakeGateway([fakeSource('m', 'Morning', 2), fakeSource('e', 'Evening', 2)])
+    let failNextRead = true
+    const user = renderMixer({
+      listSources: () => fake.listSources(),
+      getSourceTracks: (id) => {
+        if (failNextRead) {
+          failNextRead = false
+          return Promise.reject(new Error('Network down'))
+        }
+        return fake.getSourceTracks(id)
+      },
+    })
+
+    await user.click(await screen.findByRole('checkbox', { name: /morning/i }))
+    await user.click(screen.getByRole('checkbox', { name: /evening/i }))
+    await user.click(screen.getByRole('button', { name: /generate/i }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn.t read the tracks/i)
+
+    await user.click(screen.getByRole('button', { name: /generate/i }))
+    expect(await screen.findByText('4 tracks')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

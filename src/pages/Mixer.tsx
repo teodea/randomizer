@@ -21,6 +21,7 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [mix, setMix] = useState<MixItem[] | null>(null)
   const [generating, setGenerating] = useState(false)
+  const [generateFailed, setGenerateFailed] = useState(false)
   // Bumped whenever the selection changes, so a mix built for an older selection is discarded.
   const selectionVersion = useRef(0)
 
@@ -43,22 +44,34 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
     selectionVersion.current++
     setSelectedIds(next)
     setMix(null)
+    setGenerateFailed(false)
     setGenerating(false)
   }
 
+  function deselect(id: string) {
+    changeSelection(selectedIds.filter((other) => other !== id))
+  }
+
   function toggle(id: string) {
-    changeSelection(selectedIds.includes(id) ? selectedIds.filter((other) => other !== id) : [...selectedIds, id])
+    if (selectedIds.includes(id)) deselect(id)
+    else changeSelection([...selectedIds, id])
   }
 
   async function generate() {
     const version = selectionVersion.current
     setGenerating(true)
-    const mixSources = await Promise.all(
-      selectedIds.map(async (id) => ({ id, tracks: await gateway.getSourceTracks(id) })),
-    )
-    if (version !== selectionVersion.current) return
-    setMix(buildMix(mixSources, {}, createRng(newSeed())))
-    setGenerating(false)
+    setGenerateFailed(false)
+    try {
+      const mixSources = await Promise.all(
+        selectedIds.map(async (id) => ({ id, tracks: await gateway.getSourceTracks(id) })),
+      )
+      if (version !== selectionVersion.current) return
+      setMix(buildMix(mixSources, {}, createRng(newSeed())))
+    } catch {
+      if (version === selectionVersion.current) setGenerateFailed(true)
+    } finally {
+      if (version === selectionVersion.current) setGenerating(false)
+    }
   }
 
   return (
@@ -87,7 +100,7 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
                   />
                   <span className="source-name">{source.name}</span>
                   <span className="muted">
-                    {source.owner} · {countTracks(source.trackCount)}
+                    {source.owner} · {trackCountLabel(source.trackCount)}
                   </span>
                 </label>
               </li>
@@ -108,7 +121,7 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
                 <button
                   type="button"
                   aria-label={`Remove ${source.name}`}
-                  onClick={() => changeSelection(selectedIds.filter((id) => id !== source.id))}
+                  onClick={() => deselect(source.id)}
                 >
                   ×
                 </button>
@@ -122,12 +135,13 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
           </button>
         </p>
         {selected.length < MIN_SOURCES && <p className="muted">Select at least {MIN_SOURCES} sources.</p>}
+        {generateFailed && <p role="alert">Couldn&rsquo;t read the tracks. Try again.</p>}
       </section>
 
       {mix && (
         <section aria-labelledby="mix-heading">
           <h2 id="mix-heading">Your mix</h2>
-          <p>{countTracks(mix.length)}</p>
+          <p>{trackCountLabel(mix.length)}</p>
           <ol aria-label="Mix">
             {mix.map(({ track }, index) => (
               <li key={`${index}-${track.id}`}>
@@ -141,6 +155,6 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
   )
 }
 
-function countTracks(count: number) {
+function trackCountLabel(count: number) {
   return `${count} ${count === 1 ? 'track' : 'tracks'}`
 }
