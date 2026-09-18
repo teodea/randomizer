@@ -69,3 +69,50 @@
   width: 5rem;
   font: inherit;
 }
+
+.weighting-modes {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.weighting-modes legend {
+  padding: 0;
+  margin-bottom: 0.25rem;
+}
+
+.weighting-modes label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.5rem;
+  padding: 0.375rem 0;
+  cursor: pointer;
+}
+
+.weights {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.weights li {
+  display: grid;
+  grid-template-columns: minmax(0, 8rem) minmax(0, 1fr) 3.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.375rem 0;
+}
+
+.weights label {
+  overflow-wrap: anywhere;
+}
+
+.weights input {
+  width: 100%;
+}
+
+.weights output {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

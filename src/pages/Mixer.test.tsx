@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
@@ -115,6 +115,61 @@ describe('Mixer', () => {
     await user.click(screen.getByRole('button', { name: /generate/i }))
     expect(await screen.findByText('4 tracks')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('applies custom weights: a source at 100% fills the mix until it runs out', async () => {
+    const user = renderMixer()
+
+    await user.click(await screen.findByRole('checkbox', { name: /morning/i }))
+    await user.click(screen.getByRole('checkbox', { name: /evening/i }))
+    await user.click(screen.getByRole('radio', { name: /custom/i }))
+    fireEvent.change(screen.getByRole('slider', { name: /morning/i }), { target: { value: '100' } })
+    await user.click(screen.getByRole('button', { name: /generate/i }))
+
+    await screen.findByText('10 tracks')
+    const order = mixOrder()
+    expect(order.slice(0, 6).every((line) => line?.startsWith('Song m'))).toBe(true)
+    expect(order.slice(6).every((line) => line?.startsWith('Song e'))).toBe(true)
+  })
+
+  it('keeps custom weights adding up to 100%', async () => {
+    const user = renderMixer()
+
+    await user.click(await screen.findByRole('checkbox', { name: /morning/i }))
+    await user.click(screen.getByRole('checkbox', { name: /evening/i }))
+    await user.click(screen.getByRole('checkbox', { name: /weekend/i }))
+    await user.click(screen.getByRole('radio', { name: /custom/i }))
+    const slider = (name: RegExp) => screen.getByRole('slider', { name })
+
+    expect([slider(/morning/i), slider(/evening/i), slider(/weekend/i)].map((s) => Number(s.getAttribute('value')))
+      .reduce((a, b) => a + b)).toBe(100)
+
+    fireEvent.change(slider(/morning/i), { target: { value: '60' } })
+
+    expect(slider(/morning/i)).toHaveValue('60')
+    expect(slider(/evening/i)).toHaveValue('20')
+    expect(slider(/weekend/i)).toHaveValue('20')
+    expect(screen.getByText('20%', { selector: 'output[for="weight-e"]' })).toBeInTheDocument()
+  })
+
+  it('applies balanced weighting: a small source is not drowned out by a big one', async () => {
+    const user = renderMixer(createFakeGateway([fakeSource('m', 'Morning', 40), fakeSource('e', 'Evening', 4)]))
+
+    await user.click(await screen.findByRole('checkbox', { name: /morning/i }))
+    await user.click(screen.getByRole('checkbox', { name: /evening/i }))
+    await user.click(screen.getByRole('radio', { name: /balanced/i }))
+    await user.click(screen.getByRole('button', { name: /generate/i }))
+
+    await screen.findByText('44 tracks')
+    // Balanced: Evening is drawn about half the time until its 4 tracks are gone.
+    expect(mixOrder().slice(0, 20).filter((line) => line?.startsWith('Song e'))).toHaveLength(4)
+  })
+
+  it('uses uniform weighting by default', async () => {
+    renderMixer()
+
+    expect(await screen.findByRole('radio', { name: /uniform/i })).toBeChecked()
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument()
   })
 
   describe('pool settings', () => {
