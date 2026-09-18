@@ -220,6 +220,29 @@ describe('logging out', () => {
     expect(await ids(gateway)).not.toContain('old-mix')
   })
 
+  it('finds and removes the temporary playlist when the library hasn’t loaded yet', async () => {
+    const gateway = createFakeGateway([...library(), leftover()])
+    let firstList = true
+    const slow: SpotifyGateway = {
+      ...gateway,
+      // The page's own load never finishes; logging out has to look the playlist up itself.
+      listSources: () => {
+        if (!firstList) return gateway.listSources()
+        firstList = false
+        return new Promise(() => {})
+      },
+    }
+    const { auth, router, user } = renderSpotifyMixer(slow)
+    await screen.findByText(/loading playlists/i)
+
+    await user.click(screen.getByRole('button', { name: 'Log out' }))
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/'))
+    expect(auth.isLoggedIn()).toBe(false)
+    expect(await ids(gateway)).not.toContain('old-mix')
+    expect(await ids(gateway)).toContain('lookalike')
+  })
+
   it('still logs out when the playlist can’t be removed', async () => {
     const gateway = createFakeGateway(library())
     const failing: SpotifyGateway = { ...gateway, removePlaylist: () => Promise.reject(new Error('Network down')) }

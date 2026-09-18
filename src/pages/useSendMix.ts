@@ -36,6 +36,11 @@ export function useSendMix(gateway: SpotifyGateway, knownPlaylistId: string | nu
     setOwnIdState(id)
   }
 
+  /** The temporary playlist as far as anyone knows right now; queued work reads it when it runs. */
+  function currentId() {
+    return ownIdRef.current === undefined ? knownPlaylistId : ownIdRef.current
+  }
+
   /** Shows `next`, unless a later send or a reset has taken over since `run` started. */
   function updateFor(run: number) {
     return (next: SendState) => run === version.current && setState(next)
@@ -56,9 +61,7 @@ export function useSendMix(gateway: SpotifyGateway, knownPlaylistId: string | nu
     update({ step: 'writing', written: 0, total: trackIds.length })
     let playlistId: string
     try {
-      playlistId =
-        (ownIdRef.current === undefined ? knownPlaylistId : ownIdRef.current) ??
-        (await gateway.createPlaylist(TEMPORARY_PLAYLIST))
+      playlistId = currentId() ?? (await gateway.createPlaylist(TEMPORARY_PLAYLIST))
       setOwnId(playlistId)
       await gateway.replacePlaylistTracks(playlistId, trackIds, (written) =>
         update({ step: 'writing', written, total: trackIds.length }),
@@ -106,7 +109,7 @@ export function useSendMix(gateway: SpotifyGateway, knownPlaylistId: string | nu
       setCleanup('removing')
       const done = queue.current.then(async () => {
         try {
-          await removeTemporaryPlaylist(gateway, ownIdRef.current === undefined ? knownPlaylistId : ownIdRef.current)
+          await removeTemporaryPlaylist(gateway, currentId())
           setOwnId(null)
           setState({ step: 'idle' })
           setCleanup('removed')

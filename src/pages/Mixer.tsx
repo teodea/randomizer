@@ -14,7 +14,7 @@ import { OrderSettings } from './OrderSettings'
 import { defaultPoolForm, toPoolOptions } from './poolForm'
 import { PoolSettings } from './PoolSettings'
 import { SendMix } from './SendMix'
-import { useSendMix } from './useSendMix'
+import { useSendMix, type CleanupState } from './useSendMix'
 import './Mixer.css'
 
 /** A mix needs at least this many sources. */
@@ -169,7 +169,7 @@ export function Mixer({
         )}
         {onLogout && (
           <button className="link-button" type="button" disabled={loggingOut} onClick={logOut}>
-            Log out
+            {loggingOut ? 'Logging out…' : 'Log out'}
           </button>
         )}
       </p>
@@ -346,7 +346,7 @@ export function Mixer({
   )
 }
 
-function cleanupMessage(cleanup: 'idle' | 'removing' | 'removed') {
+function cleanupMessage(cleanup: Exclude<CleanupState, 'failed'>) {
   switch (cleanup) {
     case 'removing':
       return <>Removing &ldquo;{TEMPORARY_PLAYLIST.name}&rdquo;…</>
