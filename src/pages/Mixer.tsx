@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
+import { SourcePicker } from '../components/SourcePicker'
+import { trackCountLabel } from '../format'
 import { buildMix, type MixItem, type Weighting } from '../mixer/engine'
 import { createRng, randomSeed } from '../mixer/random'
 import { equalShares, setShare, type Shares } from '../mixer/shares'
+import { SourceUnavailableError } from '../spotify/errors'
 import type { SpotifyGateway } from '../spotify/gateway'
 import type { Source } from '../spotify/types'
 import { defaultPoolForm, toPoolOptions } from './poolForm'
@@ -22,16 +25,28 @@ const WEIGHTING_MODES: { mode: WeightingMode; label: string; hint: string }[] = 
 
 interface MixerProps {
   gateway: SpotifyGateway
+  /** One line under the title saying where the sources come from. */
+  subtitle?: string
+  /** Extra controls next to the Home link, e.g. Log out. */
+  actions?: ReactNode
   /** Seed for each new mix; injectable so tests get predictable orders. */
   newSeed?: () => number
 }
 
-export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
+export function Mixer({
+  gateway,
+  subtitle = 'Demo mode: sample playlists, no login.',
+  actions,
+  newSeed = randomSeed,
+}: MixerProps) {
   const [sources, setSources] = useState<Source[] | null>(null)
   const [loadFailed, setLoadFailed] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [weightingMode, setWeightingMode] = useState<WeightingMode>('uniform')
   const [shares, setShares] = useState<Shares>({})
+  const [unavailableIds, setUnavailableIds] = useState<string[]>([])
+  // Sources found unavailable by the last Generate, to tell the user what was left out.
+  const [leftOut, setLeftOut] = useState<Source[]>([])
   const [mix, setMix] = useState<MixItem[] | null>(null)
   const [generating, setGenerating] = useState(false)
   const [generateFailed, setGenerateFailed] = useState(false)
@@ -62,6 +77,7 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
     setMix(null)
     setGenerateFailed(false)
     setGenerating(false)
+    setLeftOut([])
   }
 
   function deselect(id: string) {
@@ -80,12 +96,27 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
     const version = selectionVersion.current
     setGenerating(true)
     setGenerateFailed(false)
+    setLeftOut([])
     try {
-      const mixSources = await Promise.all(
-        selectedIds.map(async (id) => ({ id, tracks: await gateway.getSourceTracks(id) })),
+      const reads = await Promise.all(
+        selectedIds.map(async (id) => {
+          try {
+            return { id, tracks: await gateway.getSourceTracks(id) }
+          } catch (error) {
+            if (error instanceof SourceUnavailableError) return { id, tracks: null }
+            throw error
+          }
+        }),
       )
       if (version !== selectionVersion.current) return
-      setMix(buildMix(mixSources, { pool, weighting }, createRng(newSeed())))
+      const mixSources = reads.flatMap(({ id, tracks }) => (tracks ? [{ id, tracks }] : []))
+      const unavailable = reads.filter(({ tracks }) => tracks === null).map(({ id }) => id)
+      if (unavailable.length > 0) {
+        setUnavailableIds((previous) => [...new Set([...previous, ...unavailable])])
+        setSelectedIds(mixSources.map(({ id }) => id))
+        setLeftOut(selected.filter((source) => unavailable.includes(source.id)))
+      }
+      setMix(mixSources.length > 0 ? buildMix(mixSources, { pool, weighting }, createRng(newSeed())) : null)
     } catch {
       if (version === selectionVersion.current) setGenerateFailed(true)
     } finally {
@@ -95,11 +126,12 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
 
   return (
     <main className="page">
-      <p>
+      <p className="mixer-nav">
         <Link to="/">Home</Link>
+        {actions}
       </p>
       <h1>Build a mix</h1>
-      <p className="muted">Demo mode: sample playlists, no login.</p>
+      <p className="muted">{subtitle}</p>
 
       <section aria-labelledby="sources-heading">
         <h2 id="sources-heading">Sources</h2>
@@ -108,23 +140,12 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
         ) : sources === null ? (
           <p className="muted">Loading playlists…</p>
         ) : (
-          <ul className="source-list">
-            {sources.map((source) => (
-              <li key={source.id}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(source.id)}
-                    onChange={() => toggle(source.id)}
-                  />
-                  <span className="source-name">{source.name}</span>
-                  <span className="muted">
-                    {source.owner} · {trackCountLabel(source.trackCount)}
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
+          <SourcePicker
+            sources={sources}
+            selectedIds={selectedIds}
+            unavailableIds={unavailableIds}
+            onToggle={toggle}
+          />
         )}
       </section>
 
@@ -217,6 +238,7 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
           </p>
         )}
         {generateFailed && <p role="alert">Couldn&rsquo;t read the tracks. Try again.</p>}
+        <p role="status">{leftOut.length > 0 && unavailableNotice(leftOut)}</p>
       </div>
 
       {mix && (
@@ -236,6 +258,9 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
   )
 }
 
-function trackCountLabel(count: number) {
-  return `${count} ${count === 1 ? 'track' : 'tracks'}`
+function unavailableNotice(sources: Source[]) {
+  const names = sources.map((source) => source.name)
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
+  const verb = names.length === 1 ? 'is' : 'are'
+  return `${list} ${verb} unavailable: Spotify doesn't let Randomizer read ${names.length === 1 ? 'its' : 'their'} tracks, so ${names.length === 1 ? 'it was' : 'they were'} left out.`
 }

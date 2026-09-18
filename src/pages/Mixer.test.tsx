@@ -11,8 +11,15 @@ function track(id: string): Track {
   return { id, name: `Song ${id}`, artists: [`Artist ${id}`], durationMs: 200_000, explicit: false, isrc: null }
 }
 
-function fakeSource(id: string, name: string, size: number): FakeSource {
-  return { id, name, owner: 'Tester', tracks: Array.from({ length: size }, (_, i) => track(`${id}${i + 1}`)) }
+function fakeSource(id: string, name: string, size: number, extra: Partial<FakeSource> = {}): FakeSource {
+  return {
+    id,
+    name,
+    owner: 'Tester',
+    imageUrl: null,
+    tracks: Array.from({ length: size }, (_, i) => track(`${id}${i + 1}`)),
+    ...extra,
+  }
 }
 
 function renderMixer(
@@ -180,12 +187,14 @@ describe('Mixer', () => {
           id: 'm',
           name: 'Morning',
           owner: 'Tester',
+          imageUrl: null,
           tracks: [shared, { ...track('intro'), durationMs: 30_000 }, { ...track('rude'), explicit: true }],
         },
         {
           id: 'e',
           name: 'Evening',
           owner: 'Tester',
+          imageUrl: null,
           tracks: [shared, { ...track('epic'), durationMs: 600_000 }, track('e1'), track('e2')],
         },
       ])
@@ -273,5 +282,76 @@ describe('Mixer', () => {
 
       expect(await screen.findByText(/no tracks match/i)).toBeInTheDocument()
     })
+  })
+
+  it('shows each source with its cover, owner and track count', async () => {
+    renderMixer(
+      createFakeGateway([
+        fakeSource('m', 'Morning', 6, { owner: 'Ada', imageUrl: 'https://img.example/m.jpg' }),
+        fakeSource('e', 'Evening', 1),
+      ]),
+    )
+
+    const morning = (await screen.findByRole('checkbox', { name: /morning/i })).closest('li')!
+    expect(within(morning).getByRole('presentation')).toHaveAttribute('src', 'https://img.example/m.jpg')
+    expect(morning).toHaveTextContent('Ada · 6 tracks')
+    expect(screen.getByRole('checkbox', { name: /evening/i }).closest('li')).toHaveTextContent('1 track')
+  })
+
+  it('filters the sources by name, keeping the selection', async () => {
+    const user = renderMixer()
+
+    await user.click(await screen.findByRole('checkbox', { name: /weekend/i }))
+    await user.type(screen.getByRole('searchbox', { name: /search/i }), 'MOR')
+
+    expect(screen.getByRole('checkbox', { name: /morning/i })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /evening/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /weekend/i })).not.toBeInTheDocument()
+    expect(selection().getByText('Weekend')).toBeInTheDocument()
+
+    await user.clear(screen.getByRole('searchbox', { name: /search/i }))
+    await user.type(screen.getByRole('searchbox', { name: /search/i }), 'zzz')
+    expect(screen.getByText(/no playlists match/i)).toBeInTheDocument()
+  })
+
+  it('marks a source whose tracks cannot be read as unavailable and mixes the rest', async () => {
+    const user = renderMixer(
+      createFakeGateway([
+        fakeSource('m', 'Morning', 3),
+        fakeSource('e', 'Evening', 2),
+        fakeSource('h', 'Hidden', 4, { unavailable: true }),
+      ]),
+    )
+
+    await user.click(await screen.findByRole('checkbox', { name: /morning/i }))
+    await user.click(screen.getByRole('checkbox', { name: /evening/i }))
+    await user.click(screen.getByRole('checkbox', { name: /hidden/i }))
+    await user.click(screen.getByRole('button', { name: /generate/i }))
+
+    expect(await screen.findByText('5 tracks')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(/hidden is unavailable/i)
+    const hidden = screen.getByRole('checkbox', { name: /hidden/i })
+    expect(hidden).toBeDisabled()
+    expect(hidden).not.toBeChecked()
+    expect(hidden.closest('li')).toHaveTextContent(/unavailable/i)
+    expect(selection().queryByText('Hidden')).not.toBeInTheDocument()
+  })
+
+  it('does not build a mix when every selected source is unavailable', async () => {
+    const user = renderMixer(
+      createFakeGateway([
+        fakeSource('a', 'Alpha', 3, { unavailable: true }),
+        fakeSource('b', 'Beta', 2, { unavailable: true }),
+        fakeSource('c', 'Gamma', 2),
+      ]),
+    )
+
+    await user.click(await screen.findByRole('checkbox', { name: /alpha/i }))
+    await user.click(screen.getByRole('checkbox', { name: /beta/i }))
+    await user.click(screen.getByRole('button', { name: /generate/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/alpha and beta are unavailable/i)
+    expect(screen.queryByRole('list', { name: /mix/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /gamma/i })).toBeEnabled()
   })
 })

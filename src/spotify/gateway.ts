@@ -8,6 +8,9 @@ import type { Source, Track } from './types'
 export interface SpotifyGateway {
   /** The sources the user can mix from. */
   listSources(): Promise<Source[]>
-  /** Every track of a source, in the source's own order. */
+  /**
+   * Every playable track of a source, in the source's own order. Throws
+   * `SourceUnavailableError` when Spotify won't let the app read the source.
+   */
   getSourceTracks(sourceId: string): Promise<Track[]>
 }

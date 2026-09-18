@@ -12,6 +12,7 @@ function playlist(id: string, name: string, tracks: SampleTrack[]): FakeSource {
     id,
     name,
     owner: 'Demo',
+    imageUrl: null,
     tracks: tracks.map(
       ([trackName, artist, seconds, explicit = false], index): Track => ({
         id: `${id}-${index + 1}`,

@@ -54,7 +54,7 @@ export function Privacy() {
 
       <h2>What stays in your browser</h2>
       <p>
-        Randomizer keeps your Spotify login (an access token, never your password) in your
+        Randomizer keeps your Spotify login (the access and refresh tokens Spotify issues, never your password) in your
         browser&rsquo;s storage, so you stay logged in when you reload the page. Your playlists,
         tracks and the current mix are kept in memory only while the page is open. Randomizer sets no
         cookies. Logging out erases everything it kept in the browser.

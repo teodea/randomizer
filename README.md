@@ -28,6 +28,13 @@ The Spotify Client ID is read at build time from `VITE_SPOTIFY_CLIENT_ID`. Local
 
 Login uses the Authorization Code flow with PKCE, so the Client ID is the only credential the app needs. It's public by design. There is no Client Secret anywhere in this project.
 
+Spotify sends the user back to `<site>/callback`, so the Spotify app's dashboard must list these redirect URIs exactly:
+
+- `https://teodea.github.io/randomizer/callback` in production
+- `http://127.0.0.1:5173/randomizer/callback` for `npm run dev`
+
+The session (access and refresh token) is kept in `localStorage` and refreshed automatically; logging out removes it. While the app is in Spotify's Development Mode, only accounts added to its allowlist can use the API. Anyone else can log in, but gets a 403 from every call; the app catches that and explains that login is invite-only.
+
 ## Deployment
 
 The `CI` workflow lints, tests and builds every push and pull request. On pushes to `main` it also deploys `dist/` to GitHub Pages (Settings → Pages → Source: GitHub Actions).

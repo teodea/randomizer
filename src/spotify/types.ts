@@ -16,4 +16,6 @@ export interface Source {
   name: string
   owner: string
   trackCount: number
+  /** Cover art, when the source has one. */
+  imageUrl: string | null
 }

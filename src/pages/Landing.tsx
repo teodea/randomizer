@@ -1,8 +1,52 @@
-import { Link } from 'react-router'
+import { useState } from 'react'
+import { Link, useLocation } from 'react-router'
+import { useServices, type Notice } from '../app/services'
+
+const NOTICES: Record<Notice, { text: string; urgent: boolean }> = {
+  expired: { text: 'Your Spotify session has expired. Log in again to continue.', urgent: true },
+  'not-invited': {
+    text: 'Randomizer is invite-only, and this Spotify account isn’t on the invite list. Spotify only lets the accounts the owner has added use an app like this. The demo works without an account.',
+    urgent: true,
+  },
+  denied: { text: 'You cancelled the login on Spotify. Log in again whenever you like.', urgent: true },
+  failed: { text: 'The login didn’t work. Please try again.', urgent: true },
+  'logged-out': {
+    text: 'You’re logged out. Randomizer no longer has access to your Spotify account on this device.',
+    urgent: false,
+  },
+}
 
 export function Landing() {
+  const { auth } = useServices()
+  const notice = (useLocation().state as { notice?: Notice } | null)?.notice
+  const [loggedIn, setLoggedIn] = useState(() => auth?.isLoggedIn() ?? false)
+  const [redirecting, setRedirecting] = useState(false)
+  const [loginFailed, setLoginFailed] = useState(false)
+
+  async function logIn() {
+    if (!auth) return
+    setRedirecting(true)
+    setLoginFailed(false)
+    try {
+      await auth.beginLogin()
+    } catch {
+      setRedirecting(false)
+      setLoginFailed(true)
+    }
+  }
+
+  function logOut() {
+    auth?.logout()
+    setLoggedIn(false)
+  }
+
   return (
     <main className="page">
+      {notice && NOTICES[notice] && (
+        <p className="notice" role={NOTICES[notice].urgent ? 'alert' : 'status'}>
+          {NOTICES[notice].text}
+        </p>
+      )}
       <h1>Randomizer</h1>
       <p className="lead">Mix tracks from several of your playlists into one shuffled queue.</p>
 
@@ -33,15 +77,36 @@ export function Landing() {
 
       <section className="cta" aria-labelledby="login-heading">
         <h2 id="login-heading">Log in</h2>
-        <p>
-          {/* Enabled once Spotify login is built. */}
-          <button className="button" type="button" disabled aria-describedby="login-status">
-            Log in with Spotify
-          </button>
-        </p>
-        <p className="muted" id="login-status">
-          Login isn&rsquo;t available yet.
-        </p>
+        {loggedIn ? (
+          <p className="actions">
+            <Link className="button button-primary" to="/mix">
+              Choose your playlists
+            </Link>
+            <button className="button" type="button" onClick={logOut}>
+              Log out
+            </button>
+          </p>
+        ) : (
+          <>
+            <p>
+              <button
+                className="button"
+                type="button"
+                disabled={!auth || redirecting}
+                aria-describedby={auth ? undefined : 'login-status'}
+                onClick={logIn}
+              >
+                Log in with Spotify
+              </button>
+            </p>
+            {!auth && (
+              <p className="muted" id="login-status">
+                Login isn&rsquo;t configured for this build.
+              </p>
+            )}
+            {loginFailed && <p role="alert">Couldn&rsquo;t start the login. Please try again.</p>}
+          </>
+        )}
         <p>
           Login is limited to invited users. While an app like this is in development, Spotify lets
           at most five accounts use it. Not invited? The demo shows how mixing works.
