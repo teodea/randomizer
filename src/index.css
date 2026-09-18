@@ -51,3 +51,78 @@ a {
 .muted {
   color: var(--muted);
 }
+
+.lead {
+  font-size: 1.125rem;
+}
+
+.steps {
+  padding-left: 1.25rem;
+}
+
+.steps li + li {
+  margin-top: 0.5rem;
+}
+
+.cta {
+  margin-top: 2rem;
+}
+
+.cta h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+}
+
+.button {
+  display: inline-block;
+  min-height: 2.75rem;
+  padding: 0.625rem 1.25rem;
+  border: 1px solid var(--text);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button-primary {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.button:disabled {
+  border-color: var(--muted);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.legal h2 {
+  margin: 2rem 0 0.5rem;
+  font-size: 1.25rem;
+}
+
+.legal li + li {
+  margin-top: 0.375rem;
+}
+
+.site-footer {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+  border-top: 1px solid color-mix(in srgb, var(--muted) 40%, transparent);
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.site-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+}
+
+.site-footer a[aria-current='page'] {
+  color: inherit;
+  text-decoration: none;
+}

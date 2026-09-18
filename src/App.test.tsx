@@ -1,12 +1,6 @@
-import { render, screen } from '@testing-library/react'
-import { createMemoryRouter, RouterProvider } from 'react-router'
+import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { routes } from './routes'
-
-function renderAt(path: string) {
-  const router = createMemoryRouter(routes, { initialEntries: [path] })
-  render(<RouterProvider router={router} />)
-}
+import { renderAt } from './test-utils'
 
 describe('routing', () => {
   it('shows the landing page at the root', () => {
