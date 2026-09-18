@@ -1,5 +1,5 @@
 import { SessionExpiredError, SourceUnavailableError } from './errors'
-import type { SpotifyGateway } from './gateway'
+import type { PlaybackOutcome, SpotifyGateway } from './gateway'
 import type { Source, Track } from './types'
 
 const API = 'https://api.spotify.com/v1'
@@ -9,6 +9,8 @@ export const LIKED_SONGS_ID = 'liked-songs'
 
 /** The Web API's largest page for playlists, playlist items and saved tracks. */
 const PAGE_SIZE = 50
+/** The most tracks one request can add to a playlist. */
+const WRITE_BATCH_SIZE = 100
 /** How many times to wait out a rate limit before giving up. */
 const MAX_RATE_LIMIT_RETRIES = 5
 
@@ -30,6 +32,7 @@ interface Paging<T> {
 interface ApiPlaylist {
   id: string
   name: string
+  description?: string | null
   owner?: { display_name?: string | null; id?: string } | null
   images?: { url: string }[] | null
   items?: { total: number } | null
@@ -64,12 +67,18 @@ export function createWebGateway({
   fetch = globalThis.fetch.bind(globalThis),
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 }: WebGatewayOptions): SpotifyGateway {
-  /** GETs a Web API URL, refreshing the token once on 401 and waiting out rate limits. */
-  async function get(url: string): Promise<Response> {
+  /** Calls a Web API URL, refreshing the token once on 401 and waiting out rate limits. */
+  async function request(url: string, { method = 'GET', body }: { method?: string; body?: unknown } = {}) {
     let token = await getAccessToken()
     let refreshed = false
     for (let rateLimited = 0; ; ) {
-      const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
+      if (body !== undefined) headers['Content-Type'] = 'application/json'
+      const response = await fetch(url, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      })
       if (response.status === 401) {
         if (refreshed) throw new SessionExpiredError()
         refreshed = true
@@ -89,10 +98,15 @@ export function createWebGateway({
     }
   }
 
-  async function getJson<T>(url: string): Promise<T> {
-    const response = await get(url)
+  /** Like `request`, but any answer other than a success is an `HttpError`. */
+  async function send(url: string, options?: { method?: string; body?: unknown }): Promise<Response> {
+    const response = await request(url, options)
     if (!response.ok) throw new HttpError(response.status, url)
-    return response.json() as Promise<T>
+    return response
+  }
+
+  async function getJson<T>(url: string): Promise<T> {
+    return (await send(url)).json() as Promise<T>
   }
 
   /** Every item across all pages, following `next`. */
@@ -123,7 +137,8 @@ export function createWebGateway({
 
   return {
     async listSources(): Promise<Source[]> {
-      const [liked, playlists] = await Promise.all([
+      const [me, liked, playlists] = await Promise.all([
+        getJson<{ id: string }>(`${API}/me`),
         getJson<Paging<ApiSavedTrack>>(`${API}/me/tracks?limit=1`),
         getAll<ApiPlaylist>(`${API}/me/playlists?limit=${PAGE_SIZE}`),
       ])
@@ -133,8 +148,10 @@ export function createWebGateway({
         owner: 'You',
         trackCount: liked.total ?? 0,
         imageUrl: null,
+        description: null,
+        ownedByUser: true,
       }
-      return [likedSongs, ...playlists.map(mapPlaylist)]
+      return [likedSongs, ...playlists.map((playlist) => mapPlaylist(playlist, me.id))]
     },
 
     getSourceTracks(sourceId: string): Promise<Track[]> {
@@ -149,6 +166,46 @@ export function createWebGateway({
         `${API}/playlists/${encodeURIComponent(sourceId)}/items?limit=${PAGE_SIZE}&${market}&additional_types=track`,
         (entry) => (entry.is_local ? null : playable(entry.item ?? entry.track)),
       )
+    },
+
+    async createPlaylist({ name, description }) {
+      // New playlists are public unless told otherwise.
+      const response = await send(`${API}/me/playlists`, {
+        method: 'POST',
+        body: { name, description, public: false },
+      })
+      const playlist: { id: string } = await response.json()
+      return playlist.id
+    },
+
+    async replacePlaylistTracks(playlistId, trackIds, onProgress) {
+      const url = `${API}/playlists/${encodeURIComponent(playlistId)}/items`
+      const uris = trackIds.map((id) => `spotify:track:${id}`)
+      // PUT replaces everything with the first batch; POST appends the rest.
+      await send(url, { method: 'PUT', body: { uris: uris.slice(0, WRITE_BATCH_SIZE) } })
+      onProgress?.(Math.min(WRITE_BATCH_SIZE, uris.length))
+      for (let start = WRITE_BATCH_SIZE; start < uris.length; start += WRITE_BATCH_SIZE) {
+        const batch = uris.slice(start, start + WRITE_BATCH_SIZE)
+        await send(url, { method: 'POST', body: { uris: batch } })
+        onProgress?.(start + batch.length)
+      }
+    },
+
+    async startPlayback(playlistId): Promise<PlaybackOutcome> {
+      const url = `${API}/me/player/play`
+      const response = await request(url, {
+        method: 'PUT',
+        body: { context_uri: `spotify:playlist:${playlistId}`, offset: { position: 0 } },
+      })
+      if (response.status === 404) return 'no-device'
+      if (response.status === 403) {
+        const body = await response.json().catch(() => null)
+        if (body?.error?.reason === 'PREMIUM_REQUIRED') return 'premium-required'
+      }
+      if (!response.ok) throw new HttpError(response.status, url)
+      // With shuffle on, Spotify would scramble the mix's order. Playback has started either way.
+      await request(`${API}/me/player/shuffle?state=false`, { method: 'PUT' }).catch(() => undefined)
+      return 'started'
     },
   }
 }
@@ -182,7 +239,7 @@ function mapTrack(track: ApiTrack): Track {
   }
 }
 
-function mapPlaylist(playlist: ApiPlaylist): Source {
+function mapPlaylist(playlist: ApiPlaylist, userId: string): Source {
   return {
     id: playlist.id,
     name: playlist.name,
@@ -190,6 +247,8 @@ function mapPlaylist(playlist: ApiPlaylist): Source {
     trackCount: playlist.items?.total ?? playlist.tracks?.total ?? 0,
     // Images come largest first; the list shows small covers.
     imageUrl: playlist.images?.at(-1)?.url ?? null,
+    description: playlist.description || null,
+    ownedByUser: playlist.owner?.id === userId,
   }
 }
 

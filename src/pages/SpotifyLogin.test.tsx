@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { LoginError } from '../spotify/auth'
 import { SessionExpiredError } from '../spotify/errors'
-import type { FakeSource } from '../spotify/fakeGateway'
+import { createFakeGateway, type FakeSource } from '../spotify/fakeGateway'
 import { createFakeAuth, fakeServices, renderAt } from '../test-utils'
 
 const library: FakeSource[] = [
@@ -83,6 +83,7 @@ describe('a logged-in user', () => {
     const router = renderAt('/mix', {
       auth,
       createGateway: () => ({
+        ...createFakeGateway([]),
         listSources: () => Promise.reject(new SessionExpiredError()),
         getSourceTracks: () => Promise.reject(new SessionExpiredError()),
       }),

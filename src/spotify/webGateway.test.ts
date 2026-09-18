@@ -5,11 +5,18 @@ import { LIKED_SONGS_ID, createWebGateway } from './webGateway'
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } })
 
-type Route = (url: URL, token: string) => Response | undefined
+interface Sent {
+  method: string
+  url: URL
+  body: unknown
+}
+
+type Route = (url: URL, token: string, sent: Sent) => Response | undefined
 
 /** A fake Web API answering from `route`; anything unrouted is a 404. */
 function setup(route: Route, { tokens = ['token-1', 'token-2'] } = {}) {
   const requests: URL[] = []
+  const sent: Sent[] = []
   const waits: number[] = []
   const tokenRequests: { forceRefresh?: boolean }[] = []
   let token = 0
@@ -22,12 +29,18 @@ function setup(route: Route, { tokens = ['token-1', 'token-2'] } = {}) {
     fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input))
       requests.push(url)
+      const request: Sent = {
+        method: init?.method ?? 'GET',
+        url,
+        body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined,
+      }
+      sent.push(request)
       const auth = new Headers(init?.headers).get('Authorization') ?? ''
-      return route(url, auth.replace('Bearer ', '')) ?? json({ error: { status: 404 } }, 404)
+      return route(url, auth.replace('Bearer ', ''), request) ?? json({ error: { status: 404 } }, 404)
     }) as typeof fetch,
     sleep: async (ms) => void waits.push(ms),
   })
-  return { gateway, requests, waits, tokenRequests }
+  return { gateway, requests, sent, waits, tokenRequests }
 }
 
 function page<T>(url: URL, all: T[], size: number) {
@@ -44,7 +57,8 @@ function page<T>(url: URL, all: T[], size: number) {
 const playlist = (id: string, extra: object = {}) => ({
   id,
   name: `Playlist ${id}`,
-  owner: { display_name: `Owner ${id}` },
+  description: '',
+  owner: { display_name: `Owner ${id}`, id: `user-${id}` },
   images: [
     { url: `https://img/${id}-640`, width: 640, height: 640 },
     { url: `https://img/${id}-60`, width: 60, height: 60 },
@@ -71,13 +85,30 @@ describe('real Spotify gateway: sources', () => {
     const { gateway, requests } = setup((url) => {
       if (url.pathname === '/v1/me/playlists') return json(page(url, playlists, 50))
       if (url.pathname === '/v1/me/tracks') return json({ items: [], total: 321, next: null })
+      if (url.pathname === '/v1/me') return json({ id: 'me' })
     })
 
     const sources = await gateway.listSources()
 
     expect(sources).toHaveLength(121)
-    expect(sources[0]).toEqual({ id: LIKED_SONGS_ID, name: 'Liked Songs', owner: 'You', trackCount: 321, imageUrl: null })
-    expect(sources[1]).toEqual({ id: 'p0', name: 'Playlist p0', owner: 'Owner p0', trackCount: 10, imageUrl: 'https://img/p0-60' })
+    expect(sources[0]).toEqual({
+      id: LIKED_SONGS_ID,
+      name: 'Liked Songs',
+      owner: 'You',
+      trackCount: 321,
+      imageUrl: null,
+      description: null,
+      ownedByUser: true,
+    })
+    expect(sources[1]).toEqual({
+      id: 'p0',
+      name: 'Playlist p0',
+      owner: 'Owner p0',
+      trackCount: 10,
+      imageUrl: 'https://img/p0-60',
+      description: null,
+      ownedByUser: false,
+    })
     expect(sources.at(-1)!.id).toBe('p119')
     expect(requests.filter((url) => url.pathname === '/v1/me/playlists')).toHaveLength(3)
   })
@@ -94,6 +125,7 @@ describe('real Spotify gateway: sources', () => {
           next: null,
         })
       if (url.pathname === '/v1/me/tracks') return json({ items: [], total: 0, next: null })
+      if (url.pathname === '/v1/me') return json({ id: 'me' })
     })
 
     const sources = await gateway.listSources()
@@ -101,6 +133,26 @@ describe('real Spotify gateway: sources', () => {
     expect(sources.map((source) => source.id)).toEqual([LIKED_SONGS_ID, 'old', 'blank'])
     expect(sources[1]).toMatchObject({ trackCount: 7, imageUrl: null })
     expect(sources[2].imageUrl).toBeNull()
+  })
+
+  it('says which playlists the user owns and keeps their descriptions', async () => {
+    const { gateway } = setup((url) => {
+      if (url.pathname === '/v1/me/playlists')
+        return json({
+          items: [
+            playlist('mine', { owner: { display_name: 'Me', id: 'me' }, description: 'Made by me' }),
+            playlist('theirs', { description: 'Made by them' }),
+          ],
+          next: null,
+        })
+      if (url.pathname === '/v1/me/tracks') return json({ items: [], total: 0, next: null })
+      if (url.pathname === '/v1/me') return json({ id: 'me' })
+    })
+
+    const [, mine, theirs] = await gateway.listSources()
+
+    expect(mine).toMatchObject({ ownedByUser: true, description: 'Made by me' })
+    expect(theirs).toMatchObject({ ownedByUser: false, description: 'Made by them' })
   })
 })
 
@@ -167,6 +219,119 @@ describe('real Spotify gateway: tracks', () => {
 
     await expect(attempt).rejects.toBeInstanceOf(SourceUnavailableError)
     await expect(attempt).rejects.toMatchObject({ sourceId: 'p1' })
+  })
+})
+
+const uris = ({ body }: Sent) => (body as { uris: string[] }).uris
+
+describe('real Spotify gateway: temporary playlist', () => {
+  it('creates a private playlist in the user’s library', async () => {
+    const { gateway, sent } = setup((url, _token, { method }) =>
+      method === 'POST' && url.pathname === '/v1/me/playlists' ? json({ id: 'new-playlist' }, 201) : undefined,
+    )
+
+    const id = await gateway.createPlaylist({ name: 'Mix', description: 'Temporary' })
+
+    expect(id).toBe('new-playlist')
+    expect(sent[0].body).toEqual({ name: 'Mix', description: 'Temporary', public: false })
+  })
+
+  it('replaces the tracks in batches of 100, in order, reporting progress', async () => {
+    const ids = Array.from({ length: 250 }, (_, i) => `t${i}`)
+    const { gateway, sent } = setup((url) =>
+      url.pathname === '/v1/playlists/tmp/items' ? json({ snapshot_id: 'snap' }, 201) : undefined,
+    )
+    const progress: number[] = []
+
+    await gateway.replacePlaylistTracks('tmp', ids, (written) => progress.push(written))
+
+    expect(sent.map(({ method }) => method)).toEqual(['PUT', 'POST', 'POST'])
+    expect(sent.map((request) => uris(request).length)).toEqual([100, 100, 50])
+    expect(sent.flatMap(uris)).toEqual(ids.map((id) => `spotify:track:${id}`))
+    expect(progress).toEqual([100, 200, 250])
+  })
+
+  it('empties the playlist when there is nothing to write', async () => {
+    const { gateway, sent } = setup((url) =>
+      url.pathname === '/v1/playlists/tmp/items' ? json({ snapshot_id: 'snap' }) : undefined,
+    )
+
+    await gateway.replacePlaylistTracks('tmp', [])
+
+    expect(sent).toEqual([expect.objectContaining({ method: 'PUT', body: { uris: [] } })])
+  })
+
+  it('finishes a large write through rate limits without giving up', async () => {
+    const ids = Array.from({ length: 1000 }, (_, i) => `t${i}`)
+    let calls = 0
+    const { gateway, sent, waits } = setup((url) => {
+      if (url.pathname !== '/v1/playlists/tmp/items') return undefined
+      calls++
+      return calls % 2 === 0
+        ? json({ error: { status: 429 } }, 429, { 'Retry-After': '2' })
+        : json({ snapshot_id: 'snap' }, 201)
+    })
+
+    await gateway.replacePlaylistTracks('tmp', ids)
+
+    const accepted = sent.filter((_, index) => index % 2 === 0)
+    expect(accepted.flatMap(uris)).toEqual(ids.map((id) => `spotify:track:${id}`))
+    expect(waits).toEqual(Array(9).fill(2000))
+  })
+
+  it('plays the playlist in order from its first track', async () => {
+    const { gateway, sent } = setup((url) =>
+      url.pathname === '/v1/me/player/play' || url.pathname === '/v1/me/player/shuffle'
+        ? new Response(null, { status: 204 })
+        : undefined,
+    )
+
+    expect(await gateway.startPlayback('tmp')).toBe('started')
+    expect(sent[0]).toMatchObject({
+      method: 'PUT',
+      body: { context_uri: 'spotify:playlist:tmp', offset: { position: 0 } },
+    })
+    expect(sent[1]).toMatchObject({ method: 'PUT' })
+    expect(sent[1].url.pathname).toBe('/v1/me/player/shuffle')
+    expect(sent[1].url.searchParams.get('state')).toBe('false')
+  })
+
+  it('still reports playback as started when shuffle can’t be turned off', async () => {
+    const { gateway } = setup((url) =>
+      url.pathname === '/v1/me/player/play' ? new Response(null, { status: 204 }) : undefined,
+    )
+
+    expect(await gateway.startPlayback('tmp')).toBe('started')
+  })
+
+  it('reports when no device is active', async () => {
+    const { gateway } = setup((url) =>
+      url.pathname === '/v1/me/player/play'
+        ? json({ error: { status: 404, message: 'No active device found', reason: 'NO_ACTIVE_DEVICE' } }, 404)
+        : undefined,
+    )
+
+    expect(await gateway.startPlayback('tmp')).toBe('no-device')
+  })
+
+  it('reports when playback needs Premium', async () => {
+    const { gateway } = setup((url) =>
+      url.pathname === '/v1/me/player/play'
+        ? json({ error: { status: 403, message: 'Premium required', reason: 'PREMIUM_REQUIRED' } }, 403)
+        : undefined,
+    )
+
+    expect(await gateway.startPlayback('tmp')).toBe('premium-required')
+  })
+
+  it('fails when playback is refused for any other reason', async () => {
+    const { gateway } = setup((url) =>
+      url.pathname === '/v1/me/player/play'
+        ? json({ error: { status: 403, message: 'Restricted device', reason: 'UNKNOWN' } }, 403)
+        : undefined,
+    )
+
+    await expect(gateway.startPlayback('tmp')).rejects.toThrow(/403/)
   })
 })
 
