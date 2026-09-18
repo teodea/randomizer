@@ -169,22 +169,25 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
           ) : (
             <>
               <ul className="weights">
-                {selected.map((source) => (
-                  <li key={source.id}>
-                    <label htmlFor={`weight-${source.id}`}>{source.name}</label>
-                    <input
-                      id={`weight-${source.id}`}
-                      type="range"
-                      min={0}
-                      max={100}
-                      step={1}
-                      value={shares[source.id] ?? 0}
-                      aria-valuetext={`${shares[source.id] ?? 0}%`}
-                      onChange={(event) => setShares(setShare(shares, source.id, Number(event.target.value)))}
-                    />
-                    <output htmlFor={`weight-${source.id}`}>{shares[source.id] ?? 0}%</output>
-                  </li>
-                ))}
+                {selected.map((source) => {
+                  const share = shares[source.id] ?? 0
+                  return (
+                    <li key={source.id}>
+                      <label htmlFor={`weight-${source.id}`}>{source.name}</label>
+                      <input
+                        id={`weight-${source.id}`}
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={share}
+                        aria-valuetext={`${share}%`}
+                        onChange={(event) => setShares(setShare(shares, source.id, Number(event.target.value)))}
+                      />
+                      <output htmlFor={`weight-${source.id}`}>{share}%</output>
+                    </li>
+                  )
+                })}
               </ul>
               <p className="muted">
                 Shares always add up to 100%. When a source runs out, the rest keep their proportions.
