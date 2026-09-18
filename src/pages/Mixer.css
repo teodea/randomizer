@@ -84,13 +84,13 @@
   cursor: pointer;
 }
 
-.pool-settings {
+.settings-fields {
   display: grid;
   gap: 0.5rem;
   justify-items: start;
 }
 
-.pool-settings fieldset {
+.settings-fields fieldset {
   display: grid;
   gap: 0.25rem;
   justify-items: start;
@@ -100,31 +100,31 @@
   border-radius: 0.5rem;
 }
 
-.pool-settings .check,
-.pool-settings .field {
+.settings-fields .check,
+.settings-fields .field {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
 }
 
-.pool-settings input[type='number'] {
+.settings-fields input[type='number'] {
   width: 5rem;
   font: inherit;
 }
 
-.weighting-modes {
+.mode-options {
   margin: 0;
   padding: 0;
   border: 0;
 }
 
-.weighting-modes legend {
+.mode-options legend {
   padding: 0;
   margin-bottom: 0.25rem;
 }
 
-.weighting-modes label {
+.mode-options label {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;

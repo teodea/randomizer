@@ -11,7 +11,7 @@ export function PoolSettings({ form, onChange }: PoolSettingsProps) {
   return (
     <section aria-labelledby="pool-heading">
       <h2 id="pool-heading">Tracks</h2>
-      <div className="pool-settings">
+      <div className="settings-fields">
         <label className="check">
           <input
             type="checkbox"

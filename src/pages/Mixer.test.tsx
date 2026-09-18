@@ -344,8 +344,9 @@ describe('Mixer', () => {
       const user = renderMixer(createFakeGateway([byArtist('m', 'Solo', 4), byArtist('e', 'Duo', 4)]))
       await selectTwo(user)
       await user.click(screen.getByRole('radio', { name: /blocks/i }))
-      await user.clear(screen.getByRole('spinbutton', { name: /block size/i }))
-      await user.type(screen.getByRole('spinbutton', { name: /block size/i }), '2')
+      const size = screen.getByRole('spinbutton', { name: /block size/i })
+      await user.clear(size)
+      await user.type(size, '2')
 
       await user.click(screen.getByRole('button', { name: /generate/i }))
       await screen.findByText('8 tracks')

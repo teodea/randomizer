@@ -180,7 +180,7 @@ export function Mixer({
 
       <section aria-labelledby="weighting-heading">
         <h2 id="weighting-heading">Weighting</h2>
-        <fieldset className="weighting-modes">
+        <fieldset className="mode-options">
           <legend>How often each source plays</legend>
           {WEIGHTING_MODES.map(({ mode, label, hint }) => (
             <label key={mode}>

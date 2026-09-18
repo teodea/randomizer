@@ -17,7 +17,7 @@ export function OrderSettings({ form, onChange }: OrderSettingsProps) {
   return (
     <section aria-labelledby="order-heading">
       <h2 id="order-heading">Order</h2>
-      <fieldset className="weighting-modes">
+      <fieldset className="mode-options">
         <legend>How the sources follow each other</legend>
         {ORDER_MODES.map(({ mode, label, hint }) => (
           <label key={mode}>
@@ -33,7 +33,7 @@ export function OrderSettings({ form, onChange }: OrderSettingsProps) {
           </label>
         ))}
       </fieldset>
-      <div className="pool-settings order-settings">
+      <div className="settings-fields order-settings">
         {form.mode === 'blocks' && (
           <label className="field">
             Blocks of

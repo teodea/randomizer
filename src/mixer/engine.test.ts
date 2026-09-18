@@ -503,6 +503,34 @@ describe('buildMix spread artists', () => {
     )
   })
 
+  it('keeps the blocks intact when swapping tracks within a source is enough', () => {
+    // Each source has two artists, so a block of two can always avoid a repeat on its own.
+    for (let seed = 1; seed <= 30; seed++) {
+      const twoArtists = (id: string, artists: [string, string]): MixSource => ({
+        id,
+        tracks: Array.from({ length: 6 }, (_, i) => track(`${id}${i}`, artists[i % 2])),
+      })
+      const mix = buildMix(
+        [twoArtists('a', ['X', 'Y']), twoArtists('b', ['Z', 'W'])],
+        { weighting: { mode: 'balanced' }, order: { mode: 'blocks', size: 2 }, spreadArtists: true },
+        createRng(seed),
+      )
+
+      expect(backToBack(mix)).toBe(0)
+      expect(mix.map((item) => item.sourceId)).toEqual(['a', 'a', 'b', 'b', 'a', 'a', 'b', 'b', 'a', 'a', 'b', 'b'])
+    }
+  })
+
+  it('handles a large mix dominated by one artist quickly', () => {
+    const tracks = Array.from({ length: 10_000 }, (_, i) => track(`t${i}`, i % 5 < 3 ? 'Big' : `Artist ${i}`))
+
+    const start = performance.now()
+    const mix = buildMix([{ id: 'a', tracks }], { spreadArtists: true }, createRng(1))
+
+    expect(performance.now() - start).toBeLessThan(1000)
+    expect(backToBack(mix)).toBe(unavoidable(mix))
+  })
+
   it('is off unless asked for', () => {
     const tracks = [
       ...Array.from({ length: 4 }, (_, i) => track(`x${i}`, 'X')),

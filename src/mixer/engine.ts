@@ -95,8 +95,8 @@ export function buildMix(sources: MixSource[], options: MixOptions, rng: Rng): M
       continue
     }
     const source = live[takeTurn(live, weights)]
-    const run = order.mode === 'blocks' ? Math.max(1, Math.floor(order.size)) : 1
-    for (let i = 0; i < run && source.tracks.length > 0 && mix.length !== pool.length; i++) {
+    const turnLength = order.mode === 'blocks' ? Math.max(1, Math.floor(order.size)) : 1
+    for (let i = 0; i < turnLength && source.tracks.length > 0 && mix.length !== pool.length; i++) {
       mix.push({ track: source.tracks.pop()!, sourceId: source.id })
     }
   }
@@ -194,7 +194,17 @@ function duplicateChecker(): (track: Track) => boolean {
 
 /** Title and primary artist, ignoring case, accents, punctuation and spacing. */
 function titleKey(track: Track): string {
-  return `${normalise(track.name)}|${normalise(track.artists[0] ?? '')}`
+  return `${normalise(track.name)}|${primaryArtist(track)}`
+}
+
+/** Who a track counts as being by when spreading artists; a track with no artist is its own. */
+function artistKey(track: Track): string {
+  return primaryArtist(track) || `track:${track.id}`
+}
+
+/** The first-listed artist, ignoring case, accents, punctuation and spacing. */
+function primaryArtist(track: Track): string {
+  return normalise(track.artists[0] ?? '')
 }
 
 function normalise(text: string): string {
@@ -208,34 +218,73 @@ function normalise(text: string): string {
 
 /**
  * Reorders the mix so no primary artist plays twice in a row unless it can't be helped. Walking
- * the mix, each slot takes the earliest remaining track by a different artist than the one
- * before, except that an artist holding more than half of what is left must go now, or it
- * would be forced into back-to-back repeats later. This gives the fewest repeats possible and
- * keeps the original order wherever it was already fine.
+ * the mix, each slot takes the earliest unplaced track by a different artist than the one
+ * before, from the source the slot had when there is one, so blocks and turns stay intact. An artist holding more than half of what is left must go now,
+ * or it would be forced into repeats later. This gives the fewest repeats possible and leaves the
+ * order alone wherever it was already fine.
  */
 function spreadArtists(mix: MixItem[]): MixItem[] {
-  const artist = (item: MixItem) => normalise(item.track.artists[0] ?? '') || `track:${item.track.id}`
-  const left = new Map<string, number>()
-  for (const item of mix) left.set(artist(item), (left.get(artist(item)) ?? 0) + 1)
+  const end = mix.length
+  const keys = mix.map((item) => artistKey(item.track))
+  // The tracks not placed yet, as a doubly linked list over their positions in the mix.
+  const next = mix.map((_, i) => i + 1)
+  const prev = mix.map((_, i) => i - 1)
+  let head = 0
+  const unlink = (i: number) => {
+    if (prev[i] >= 0) next[prev[i]] = next[i]
+    else head = next[i]
+    if (next[i] < end) prev[next[i]] = prev[i]
+  }
+  const placed = mix.map(() => false)
+  // Each artist's positions in mix order, and how many of them are left.
+  const positions = new Map<string, number[]>()
+  keys.forEach((key, i) => positions.set(key, [...(positions.get(key) ?? []), i]))
+  const counts = new Map([...positions].map(([key, list]) => [key, list.length]))
+  // Artists grouped by how many tracks they have left; counts only go down, so `most` does too.
+  const byCount = new Map<number, Set<string>>()
+  for (const [key, count] of counts) byCount.set(count, (byCount.get(count) ?? new Set()).add(key))
+  let most = Math.max(0, ...counts.values())
 
-  const remaining = [...mix]
+  // Where each artist's first unplaced track is in its `positions`.
+  const cursors = new Map([...positions.keys()].map((key) => [key, 0]))
+
   const result: MixItem[] = []
   let previous: string | undefined
-  while (remaining.length > 0) {
-    let crowding: string | undefined
-    for (const [name, count] of left) {
-      if (name !== previous && 2 * count > remaining.length) crowding = name
+  for (let slot = 0; slot < end; slot++) {
+    let chosen = -1
+    // Two artists can't both hold more than half, so the group at `most` then has just one.
+    const [crowding] = 2 * most > end - slot ? byCount.get(most)! : []
+    if (crowding !== undefined && crowding !== previous) {
+      const list = positions.get(crowding)!
+      let cursor = cursors.get(crowding)!
+      while (placed[list[cursor]]) cursor++
+      cursors.set(crowding, cursor)
+      chosen = list[cursor]
+    } else {
+      // The slot keeps the source it had, so blocks and turns survive; another source only if it must.
+      const due = mix[slot].sourceId
+      let otherSource = -1
+      for (let i = head; i < end; i = next[i]) {
+        if (keys[i] === previous) continue
+        if (mix[i].sourceId === due) {
+          chosen = i
+          break
+        }
+        if (otherSource === -1) otherSource = i
+      }
+      // Every track left is by the artist that just played: the repeat can't be avoided.
+      if (chosen === -1) chosen = otherSource === -1 ? head : otherSource
     }
-    let index = remaining.findIndex((item) =>
-      crowding === undefined ? artist(item) !== previous : artist(item) === crowding,
-    )
-    // Every track left is by the artist that just played: the repeat can't be avoided.
-    if (index === -1) index = 0
 
-    const [item] = remaining.splice(index, 1)
-    previous = artist(item)
-    left.set(previous, left.get(previous)! - 1)
-    result.push(item)
+    placed[chosen] = true
+    unlink(chosen)
+    previous = keys[chosen]
+    const count = counts.get(previous)!
+    byCount.get(count)!.delete(previous)
+    counts.set(previous, count - 1)
+    byCount.set(count - 1, (byCount.get(count - 1) ?? new Set()).add(previous))
+    while (most > 0 && byCount.get(most)!.size === 0) most--
+    result.push(mix[chosen])
   }
   return result
 }
