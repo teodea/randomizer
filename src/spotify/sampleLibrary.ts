@@ -2,7 +2,8 @@ import { createFakeGateway, type FakeSource } from './fakeGateway'
 import type { Track } from './types'
 
 // Invented playlists, artists and songs for demo mode. None of it is real Spotify content.
-// A few songs appear in more than one playlist, so duplicate removal has something to do.
+// A few songs appear in more than one playlist and one is a short interlude, so the
+// duplicate and duration settings have something to do.
 
 type SampleTrack = [name: string, artist: string, seconds: number, explicit?: boolean]
 

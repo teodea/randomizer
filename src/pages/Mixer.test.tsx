@@ -199,6 +199,16 @@ describe('Mixer', () => {
       expect(screen.getByRole('button', { name: /generate/i })).toBeDisabled()
     })
 
+    it('needs the shortest duration to be no longer than the longest', async () => {
+      const user = renderMixer(poolGateway())
+      await selectBoth(user)
+
+      await user.type(screen.getByRole('spinbutton', { name: /shorter than/i }), '5')
+      await user.type(screen.getByRole('spinbutton', { name: /longer than/i }), '2')
+
+      expect(screen.getByRole('button', { name: /generate/i })).toBeDisabled()
+    })
+
     it('says so when no track matches the settings', async () => {
       const user = renderMixer(poolGateway())
       await selectBoth(user)

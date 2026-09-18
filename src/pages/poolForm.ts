@@ -27,6 +27,7 @@ export function toPoolOptions(form: PoolForm): PoolOptions | null {
   const maxMinutes = parseMinutes(form.maxMinutes)
   const length = Number(form.length)
   if (minMinutes === null || maxMinutes === null) return null
+  if (minMinutes !== undefined && maxMinutes !== undefined && minMinutes > maxMinutes) return null
   if (form.fixedLength && !(Number.isInteger(length) && length > 0)) return null
 
   return {

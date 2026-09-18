@@ -142,7 +142,7 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
           </button>
         </p>
         {selected.length < MIN_SOURCES && <p className="muted">Select at least {MIN_SOURCES} sources.</p>}
-        {!pool && <p className="muted">Check the track settings: durations and the number of tracks must be valid.</p>}
+        {!pool && <p className="muted">Check the track settings: the shortest length can&rsquo;t exceed the longest, and the number of tracks must be a whole number.</p>}
         {generateFailed && <p role="alert">Couldn&rsquo;t read the tracks. Try again.</p>}
       </section>
 
