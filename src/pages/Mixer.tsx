@@ -260,7 +260,9 @@ export function Mixer({
 
 function unavailableNotice(sources: Source[]) {
   const names = sources.map((source) => source.name)
-  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
-  const verb = names.length === 1 ? 'is' : 'are'
-  return `${list} ${verb} unavailable: Spotify doesn't let Randomizer read ${names.length === 1 ? 'its' : 'their'} tracks, so ${names.length === 1 ? 'it was' : 'they were'} left out.`
+  if (names.length === 1) {
+    return `${names[0]} is unavailable: Spotify doesn't let Randomizer read its tracks, so it was left out.`
+  }
+  const list = `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
+  return `${list} are unavailable: Spotify doesn't let Randomizer read their tracks, so they were left out.`
 }

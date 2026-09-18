@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 import { config } from '../config'
-import { createAuth, type Auth } from '../spotify/auth'
+import { createAuth, type Auth, type LoginFailure } from '../spotify/auth'
 import type { SpotifyGateway } from '../spotify/gateway'
 import { createWebGateway } from '../spotify/webGateway'
 
@@ -34,4 +34,4 @@ export function useServices(): Services {
 }
 
 /** Why the user landed back on the home page, shown there as a message. */
-export type Notice = 'expired' | 'not-invited' | 'denied' | 'failed' | 'logged-out'
+export type Notice = LoginFailure | 'expired' | 'logged-out'

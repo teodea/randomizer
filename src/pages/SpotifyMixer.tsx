@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { Navigate, useNavigate } from 'react-router'
 import { useServices, type Notice } from '../app/services'
 import type { Auth } from '../spotify/auth'
@@ -17,25 +17,23 @@ function LoggedInMixer({ auth }: { auth: Auth }) {
   const { createGateway } = useServices()
   const navigate = useNavigate()
 
-  const gateway = useMemo(() => {
-    const leave = (notice: Notice) => {
+  /** Ends the session and goes home, saying why. */
+  const leave = useCallback(
+    (notice: Notice) => {
       auth.logout()
       navigate('/', { replace: true, state: { notice } })
-    }
-    return guardSession(createGateway(auth), () => leave('expired'))
-  }, [auth, createGateway, navigate])
+    },
+    [auth, navigate],
+  )
 
-  function logOut() {
-    auth.logout()
-    navigate('/', { state: { notice: 'logged-out' satisfies Notice } })
-  }
+  const gateway = useMemo(() => guardSession(createGateway(auth), () => leave('expired')), [auth, createGateway, leave])
 
   return (
     <Mixer
       gateway={gateway}
       subtitle="Your playlists and Liked Songs on Spotify."
       actions={
-        <button className="link-button" type="button" onClick={logOut}>
+        <button className="link-button" type="button" onClick={() => leave('logged-out')}>
           Log out
         </button>
       }

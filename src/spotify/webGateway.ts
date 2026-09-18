@@ -77,10 +77,10 @@ export function createWebGateway({
         continue
       }
       if (response.status === 429) {
-        const body = await response.clone().json().catch(() => null)
-        if (body?.reason === 'QUOTA_EXCEEDED' || rateLimited >= MAX_RATE_LIMIT_RETRIES) {
-          throw new Error(`Spotify rate limit: ${body?.reason === 'QUOTA_EXCEEDED' ? 'quota exceeded' : 'too many retries'}`)
-        }
+        const body = await response.json().catch(() => null)
+        // Development Mode's quota: waiting a few seconds won't bring it back.
+        if (body?.reason === 'QUOTA_EXCEEDED') throw new Error('Spotify quota exceeded')
+        if (rateLimited >= MAX_RATE_LIMIT_RETRIES) throw new Error('Spotify rate limit: too many retries')
         rateLimited++
         await sleep(retryAfterMs(response))
         continue

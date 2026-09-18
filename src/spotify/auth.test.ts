@@ -183,6 +183,16 @@ describe('Spotify login with PKCE', () => {
     expect(context.auth.isLoggedIn()).toBe(false)
     expect(context.storage.length).toBe(0)
   })
+
+  it('does not stay half logged in when the profile cannot be read', async () => {
+    const context = setup((url, init) => {
+      if (url.pathname === '/v1/me') throw new TypeError('Failed to fetch')
+      return happySpotify(url, init)
+    })
+
+    await expect(logIn(context)).rejects.toMatchObject({ reason: 'failed' })
+    expect(context.auth.isLoggedIn()).toBe(false)
+  })
 })
 
 describe('Spotify session', () => {
@@ -267,5 +277,26 @@ describe('Spotify session', () => {
     expect(context.auth.isLoggedIn()).toBe(false)
     expect(context.reload().isLoggedIn()).toBe(false)
     expect(context.storage.length).toBe(0)
+  })
+
+  it('picks up a refresh token another tab rotated instead of logging out', async () => {
+    const context = setup((url, init) => {
+      if (url.pathname === '/api/token' && formOf(init).get('grant_type') === 'refresh_token') {
+        return formOf(init).get('refresh_token') === 'refresh-1'
+          ? json({ error: 'invalid_grant' }, 400)
+          : tokenResponse('access-other', 'refresh-3')
+      }
+      return happySpotify(url, init)
+    })
+    await logIn(context)
+    context.advance(3_600_000)
+    // Meanwhile another tab refreshed and Spotify rotated the refresh token.
+    const otherTab = { accessToken: 'access-from-other-tab', refreshToken: 'refresh-2', expiresAt: 1 }
+    const staleTab = context.auth
+    const refreshing = staleTab.getAccessToken()
+    context.storage.setItem('randomizer.session', JSON.stringify(otherTab))
+
+    expect(await refreshing).toBe('access-other')
+    expect(staleTab.isLoggedIn()).toBe(true)
   })
 })

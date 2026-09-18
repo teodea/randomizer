@@ -126,8 +126,13 @@ export function createAuth({
     const response = await requestToken({ grant_type: 'refresh_token', refresh_token: session.refreshToken })
     if (!response.ok) {
       const body = await response.json().catch(() => null)
-      // invalid_grant: the refresh token expired or the user revoked access. Retrying won't help.
       if (response.status === 400 && body?.error === 'invalid_grant') {
+        // Another tab may have used this refresh token first and saved the one Spotify rotated in.
+        const current = readSession()
+        if (current && current.refreshToken !== session.refreshToken) {
+          return current.expiresAt - now() > EXPIRY_MARGIN_MS ? current : refresh(current)
+        }
+        // Otherwise the refresh token expired or the user revoked access. Retrying won't help.
         logout()
         throw new SessionExpiredError()
       }
@@ -183,7 +188,12 @@ export function createAuth({
       const session = saveSession(await response.json())
 
       // In Development Mode anyone can log in, but only allowlisted accounts can call the API.
-      const me = await fetch(ME_URL, { headers: { Authorization: `Bearer ${session.accessToken}` } })
+      const me = await fetch(ME_URL, { headers: { Authorization: `Bearer ${session.accessToken}` } }).catch(
+        (error: unknown) => {
+          logout()
+          throw new LoginError('failed', `Reading the profile failed: ${String(error)}`)
+        },
+      )
       if (me.status === 403) {
         logout()
         throw new LoginError('not-invited', 'This Spotify account is not on the invite list')
