@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
+import { splitLibrary } from '../app/temporaryPlaylist'
 import { SourcePicker } from '../components/SourcePicker'
 import { trackCountLabel } from '../format'
 import { buildMix, type MixItem, type Weighting } from '../mixer/engine'
@@ -12,6 +13,8 @@ import { defaultOrderForm, toOrder } from './orderForm'
 import { OrderSettings } from './OrderSettings'
 import { defaultPoolForm, toPoolOptions } from './poolForm'
 import { PoolSettings } from './PoolSettings'
+import { SendMix } from './SendMix'
+import { useSendMix } from './useSendMix'
 import './Mixer.css'
 
 /** A mix needs at least this many sources. */
@@ -33,6 +36,8 @@ interface MixerProps {
   actions?: ReactNode
   /** Seed for each new mix; injectable so tests get predictable orders. */
   newSeed?: () => number
+  /** Whether the mix can be sent to the user's Spotify; not in demo mode. */
+  canSend?: boolean
 }
 
 export function Mixer({
@@ -40,8 +45,9 @@ export function Mixer({
   subtitle = 'Demo mode: sample playlists, no login.',
   actions,
   newSeed = randomSeed,
+  canSend = false,
 }: MixerProps) {
-  const [sources, setSources] = useState<Source[] | null>(null)
+  const [library, setLibrary] = useState<Source[] | null>(null)
   const [loadFailed, setLoadFailed] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [weightingMode, setWeightingMode] = useState<WeightingMode>('uniform')
@@ -60,13 +66,19 @@ export function Mixer({
   useEffect(() => {
     let active = true
     gateway.listSources().then(
-      (list) => active && setSources(list),
+      (list) => active && setLibrary(list),
       () => active && setLoadFailed(true),
     )
     return () => {
       active = false
     }
   }, [gateway])
+
+  // The app's own playlist is where mixes go, never something to mix from.
+  const { sources, temporaryPlaylistId } = library
+    ? splitLibrary(library)
+    : { sources: null, temporaryPlaylistId: null }
+  const sendMix = useSendMix(gateway, temporaryPlaylistId)
 
   const selected = selectedIds
     .map((id) => sources?.find((source) => source.id === id))
@@ -79,6 +91,7 @@ export function Mixer({
     setSelectedIds(next)
     setShares(equalShares(next))
     setMix(null)
+    sendMix.reset()
     setGenerateFailed(false)
     setGenerating(false)
     setLeftOut([])
@@ -98,6 +111,7 @@ export function Mixer({
     const weighting: Weighting =
       weightingMode === 'custom' ? { mode: 'custom', weights: shares } : { mode: weightingMode }
     const version = selectionVersion.current
+    sendMix.reset()
     setGenerating(true)
     setGenerateFailed(false)
     setLeftOut([])
@@ -235,7 +249,7 @@ export function Mixer({
         <p>
           <button
             type="button"
-            disabled={selected.length < MIN_SOURCES || !pool || !order || generating}
+            disabled={selected.length < MIN_SOURCES || !pool || !order || generating || sendMix.busy}
             onClick={generate}
           >
             {mix ? 'Regenerate' : 'Generate mix'}
@@ -257,6 +271,17 @@ export function Mixer({
         <section aria-labelledby="mix-heading">
           <h2 id="mix-heading">Your mix</h2>
           <p>{mix.length === 0 ? 'No tracks match these settings.' : trackCountLabel(mix.length)}</p>
+          {mix.length > 0 &&
+            (canSend ? (
+              <SendMix
+                state={sendMix.state}
+                busy={sendMix.busy}
+                onSend={() => sendMix.send(mix.map(({ track }) => track.id))}
+                onRetryPlayback={sendMix.retryPlayback}
+              />
+            ) : (
+              <p className="muted">Demo mode: log in to play a mix on Spotify.</p>
+            ))}
           <ol aria-label="Mix">
             {mix.map(({ track }, index) => (
               <li key={`${index}-${track.id}`}>

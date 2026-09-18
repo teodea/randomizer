@@ -163,3 +163,14 @@
 .order-settings {
   margin-top: 0.5rem;
 }
+
+.send-mix progress {
+  width: 100%;
+}
+
+.send-mix-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}

@@ -104,7 +104,7 @@ describe('Mixer', () => {
     const fake = createFakeGateway([fakeSource('m', 'Morning', 2), fakeSource('e', 'Evening', 2)])
     let failNextRead = true
     const user = renderMixer({
-      listSources: () => fake.listSources(),
+      ...fake,
       getSourceTracks: (id) => {
         if (failNextRead) {
           failNextRead = false
