@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { useServices, type Notice } from '../app/services'
+import { removeTemporaryPlaylist } from '../app/temporaryPlaylist'
 
 const NOTICES: Record<Notice, { text: string; urgent: boolean }> = {
   expired: { text: 'Your Spotify session has expired. Log in again to continue.', urgent: true },
@@ -17,11 +18,12 @@ const NOTICES: Record<Notice, { text: string; urgent: boolean }> = {
 }
 
 export function Landing() {
-  const { auth } = useServices()
+  const { auth, createGateway } = useServices()
   const notice = (useLocation().state as { notice?: Notice } | null)?.notice
   const [loggedIn, setLoggedIn] = useState(() => auth?.isLoggedIn() ?? false)
   const [redirecting, setRedirecting] = useState(false)
   const [loginFailed, setLoginFailed] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
 
   async function logIn() {
     if (!auth) return
@@ -35,9 +37,15 @@ export function Landing() {
     }
   }
 
-  function logOut() {
-    auth?.logout()
+  /** Nothing is left behind: the temporary playlist goes first, then the session. */
+  async function logOut() {
+    if (!auth) return
+    setLoggingOut(true)
+    // If removing fails, the next visit finds the playlist and offers to remove it.
+    await removeTemporaryPlaylist(createGateway(auth)).catch(() => undefined)
+    auth.logout()
     setLoggedIn(false)
+    setLoggingOut(false)
   }
 
   return (
@@ -82,7 +90,7 @@ export function Landing() {
             <Link className="button button-primary" to="/mix">
               Choose your playlists
             </Link>
-            <button className="button" type="button" onClick={logOut}>
+            <button className="button" type="button" disabled={loggingOut} onClick={logOut}>
               Log out
             </button>
           </p>

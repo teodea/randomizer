@@ -33,11 +33,7 @@ function LoggedInMixer({ auth }: { auth: Auth }) {
       gateway={gateway}
       subtitle="Your playlists and Liked Songs on Spotify."
       canSend
-      actions={
-        <button className="link-button" type="button" onClick={() => leave('logged-out')}>
-          Log out
-        </button>
-      }
+      onLogout={() => leave('logged-out')}
     />
   )
 }
@@ -61,6 +57,7 @@ function guardSession(gateway: SpotifyGateway, onExpired: () => void): SpotifyGa
       guard(gateway.replacePlaylistTracks(playlistId, trackIds, onProgress)),
     replacePlaylistTail: (playlistId, kept, currentTail, nextTail, onProgress) =>
       guard(gateway.replacePlaylistTail(playlistId, kept, currentTail, nextTail, onProgress)),
+    removePlaylist: (playlistId) => guard(gateway.removePlaylist(playlistId)),
     startPlayback: (playlistId) => guard(gateway.startPlayback(playlistId)),
     getPlaybackState: () => guard(gateway.getPlaybackState()),
   }

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { splitLibrary } from '../app/temporaryPlaylist'
+import { TEMPORARY_PLAYLIST, splitLibrary } from '../app/temporaryPlaylist'
 import { SourcePicker } from '../components/SourcePicker'
 import { trackCountLabel } from '../format'
 import { buildMix, reshuffleRemaining, type MixItem, type MixOptions, type Weighting } from '../mixer/engine'
@@ -15,7 +15,7 @@ import { defaultPoolForm, toPoolOptions } from './poolForm'
 import { PoolSettings } from './PoolSettings'
 import { ReshuffleControls } from './ReshuffleControls'
 import { SendMix } from './SendMix'
-import { useSendMix } from './useSendMix'
+import { useSendMix, type CleanupState } from './useSendMix'
 import './Mixer.css'
 
 /** A mix needs at least this many sources. */
@@ -33,8 +33,8 @@ interface MixerProps {
   gateway: SpotifyGateway
   /** One line under the title saying where the sources come from. */
   subtitle?: string
-  /** Extra controls next to the Home link, e.g. Log out. */
-  actions?: ReactNode
+  /** Ends the session; given, the page offers Log out, which first removes the temporary playlist. */
+  onLogout?: () => void
   /** Seed for each new mix; injectable so tests get predictable orders. */
   newSeed?: () => number
   /** Whether the mix can be sent to the user's Spotify; not in demo mode. */
@@ -44,7 +44,7 @@ interface MixerProps {
 export function Mixer({
   gateway,
   subtitle = 'Demo mode: sample playlists, no login.',
-  actions,
+  onLogout,
   newSeed = randomSeed,
   canSend = false,
 }: MixerProps) {
@@ -67,6 +67,7 @@ export function Mixer({
   const [generateFailed, setGenerateFailed] = useState(false)
   const [poolForm, setPoolForm] = useState(defaultPoolForm)
   const [orderForm, setOrderForm] = useState(defaultOrderForm)
+  const [loggingOut, setLoggingOut] = useState(false)
   // Bumped whenever the selection changes, so a mix built for an older selection is discarded.
   const selectionVersion = useRef(0)
 
@@ -85,7 +86,7 @@ export function Mixer({
   const { sources, temporaryPlaylistId } = library
     ? splitLibrary(library)
     : { sources: null, temporaryPlaylistId: null }
-  const sendMix = useSendMix(gateway, temporaryPlaylistId)
+  const sendMix = useSendMix(gateway, library ? temporaryPlaylistId : undefined)
 
   const selected = selectedIds
     .map((id) => sources?.find((source) => source.id === id))
@@ -120,6 +121,14 @@ export function Mixer({
   function toggle(id: string) {
     if (selectedIds.includes(id)) deselect(id)
     else changeSelection([...selectedIds, id])
+  }
+
+  /** Nothing is left behind: the temporary playlist goes first, then the session. */
+  async function logOut() {
+    setLoggingOut(true)
+    // If removing fails, the next visit finds the playlist and offers to remove it.
+    await sendMix.cleanUp()
+    onLogout?.()
   }
 
   async function generate() {
@@ -215,10 +224,52 @@ export function Mixer({
     <main className="page">
       <p className="mixer-nav">
         <Link to="/">Home</Link>
-        {actions}
+        {canSend && sendMix.playlistId && !sendMix.isLeftover && (
+          <button
+            className="link-button"
+            type="button"
+            title={`Remove “${TEMPORARY_PLAYLIST.name}” from your Spotify library`}
+            disabled={sendMix.busy || loggingOut}
+            onClick={() => sendMix.cleanUp()}
+          >
+            Clean up
+          </button>
+        )}
+        {onLogout && (
+          <button className="link-button" type="button" disabled={loggingOut} onClick={logOut}>
+            {loggingOut ? 'Logging out…' : 'Log out'}
+          </button>
+        )}
       </p>
       <h1>Build a mix</h1>
       <p className="muted">{subtitle}</p>
+
+      {canSend && sendMix.isLeftover && (
+        <section className="leftover" aria-labelledby="leftover-heading">
+          <h2 id="leftover-heading">An earlier mix is still in your library</h2>
+          <p>
+            &ldquo;{TEMPORARY_PLAYLIST.name}&rdquo; is left from an earlier visit. Remove it, or keep it and your
+            next mix will replace it.
+          </p>
+          <p className="actions">
+            <button type="button" disabled={sendMix.busy || loggingOut} onClick={() => sendMix.cleanUp()}>
+              Remove it
+            </button>
+            <button type="button" disabled={sendMix.busy || loggingOut} onClick={sendMix.keepLeftover}>
+              Keep it
+            </button>
+          </p>
+        </section>
+      )}
+      {canSend &&
+        !loggingOut &&
+        (sendMix.cleanup === 'failed' ? (
+          <p role="alert">
+            Couldn&rsquo;t remove &ldquo;{TEMPORARY_PLAYLIST.name}&rdquo; from your library. Try again.
+          </p>
+        ) : (
+          <p role="status">{cleanupMessage(sendMix.cleanup)}</p>
+        ))}
 
       <section aria-labelledby="sources-heading">
         <h2 id="sources-heading">Sources</h2>
@@ -386,6 +437,17 @@ function trackIds(items: MixItem[]): string[] {
 
 const NOT_PLAYING = 'Your mix isn’t playing on Spotify right now. Start it there, then try again.'
 const LAST_TRACK = 'The last track of the mix is playing: there’s nothing left to reshuffle.'
+
+function cleanupMessage(cleanup: Exclude<CleanupState, 'failed'>) {
+  switch (cleanup) {
+    case 'removing':
+      return <>Removing &ldquo;{TEMPORARY_PLAYLIST.name}&rdquo;…</>
+    case 'removed':
+      return <>Removed &ldquo;{TEMPORARY_PLAYLIST.name}&rdquo; from your library.</>
+    default:
+      return null
+  }
+}
 
 function unavailableNotice(sources: Source[]) {
   const names = sources.map((source) => source.name)

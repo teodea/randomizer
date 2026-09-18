@@ -100,6 +100,11 @@ export function createFakeGateway(sources: FakeSource[], { playback = 'started' 
       reportProgress(nextTail.length, onProgress)
     },
 
+    async removePlaylist(playlistId) {
+      playlists.splice(playlists.indexOf(find(playlistId)), 1)
+      if (playing?.playlistId === playlistId) playing = null
+    },
+
     async startPlayback(playlistId) {
       find(playlistId)
       if (playback === 'started') playing = { playlistId, position: 0 }

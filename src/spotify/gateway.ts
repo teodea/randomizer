@@ -43,6 +43,8 @@ export interface SpotifyGateway {
     nextTail: string[],
     onProgress?: (written: number) => void,
   ): Promise<void>
+  /** Removes a playlist from the user's library; for their own playlist, that's how Spotify deletes it. */
+  removePlaylist(playlistId: string): Promise<void>
   /** Plays the playlist from its first track, in order, on the user's active device. */
   startPlayback(playlistId: string): Promise<PlaybackOutcome>
   /** What's playing on the user's account now; null when nothing is. */
