@@ -26,4 +26,18 @@ describe('demo mode', () => {
     expect(screen.getByRole('heading', { level: 1, name: /build a mix/i })).toBeInTheDocument()
     expect((await screen.findAllByRole('checkbox')).length).toBeGreaterThanOrEqual(2)
   })
+
+  it('removes songs that appear in more than one sample playlist', async () => {
+    const user = userEvent.setup()
+    renderAt('/demo')
+
+    await user.click(await screen.findByRole('checkbox', { name: /late night drive/i }))
+    await user.click(screen.getByRole('checkbox', { name: /sunday coffee/i }))
+    await user.click(screen.getByRole('button', { name: /generate/i }))
+    expect(await screen.findByText('19 tracks')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: /remove duplicates/i }))
+    await user.click(screen.getByRole('button', { name: /regenerate/i }))
+    expect(await screen.findByText('18 tracks')).toBeInTheDocument()
+  })
 })

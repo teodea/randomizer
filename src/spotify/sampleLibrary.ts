@@ -2,6 +2,7 @@ import { createFakeGateway, type FakeSource } from './fakeGateway'
 import type { Track } from './types'
 
 // Invented playlists, artists and songs for demo mode. None of it is real Spotify content.
+// A few songs appear in more than one playlist, so duplicate removal has something to do.
 
 type SampleTrack = [name: string, artist: string, seconds: number, explicit?: boolean]
 
@@ -45,6 +46,7 @@ export const sampleLibrary: FakeSource[] = [
     ['Paper Crane', 'The Linen Club', 224],
     ['Crossword', 'Odette Moss', 176],
     ['Late Breakfast', 'The Linen Club', 211],
+    ['Home by Dawn', 'Pale Harbor', 274],
   ]),
   playlist('gym-rotation', 'Gym Rotation', [
     ['Heavy Lifting', 'Kid Carbon', 168, true],
@@ -62,6 +64,8 @@ export const sampleLibrary: FakeSource[] = [
     ['Borrowed Jacket', 'Wren & the Weather', 198],
     ['Kites', 'The Quiet Arcade', 233],
     ['Porch Light', 'Fern Club', 207],
+    ['Interlude (Tape Hiss)', 'Fern Club', 42],
+    ['Sodium Glow', 'Night Tram', 205],
   ]),
   playlist('rainy-day-jazz', 'Rainy Day Jazz', [
     ['Umbrella Waltz', 'The Blue Hour Trio', 312],

@@ -116,4 +116,97 @@ describe('Mixer', () => {
     expect(await screen.findByText('4 tracks')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
+
+  describe('pool settings', () => {
+    function poolGateway() {
+      const shared = track('shared')
+      return createFakeGateway([
+        {
+          id: 'm',
+          name: 'Morning',
+          owner: 'Tester',
+          tracks: [shared, { ...track('intro'), durationMs: 30_000 }, { ...track('rude'), explicit: true }],
+        },
+        {
+          id: 'e',
+          name: 'Evening',
+          owner: 'Tester',
+          tracks: [shared, { ...track('epic'), durationMs: 600_000 }, track('e1'), track('e2')],
+        },
+      ])
+    }
+
+    async function selectBoth(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(await screen.findByRole('checkbox', { name: /morning/i }))
+      await user.click(screen.getByRole('checkbox', { name: /evening/i }))
+    }
+
+    it('uses every track, duplicates included, by default', async () => {
+      const user = renderMixer(poolGateway())
+      await selectBoth(user)
+
+      expect(screen.getByRole('radio', { name: /all eligible tracks/i })).toBeChecked()
+      await user.click(screen.getByRole('button', { name: /generate/i }))
+
+      expect(await screen.findByText('7 tracks')).toBeInTheDocument()
+    })
+
+    it('removes duplicates across sources', async () => {
+      const user = renderMixer(poolGateway())
+      await selectBoth(user)
+
+      await user.click(screen.getByRole('checkbox', { name: /remove duplicates/i }))
+      await user.click(screen.getByRole('button', { name: /generate/i }))
+
+      expect(await screen.findByText('6 tracks')).toBeInTheDocument()
+      expect(mixOrder().filter((line) => line?.startsWith('Song shared'))).toHaveLength(1)
+    })
+
+    it('filters out explicit tracks and tracks outside the duration limits', async () => {
+      const user = renderMixer(poolGateway())
+      await selectBoth(user)
+
+      await user.click(screen.getByRole('checkbox', { name: /skip explicit/i }))
+      await user.type(screen.getByRole('spinbutton', { name: /shorter than/i }), '1')
+      await user.type(screen.getByRole('spinbutton', { name: /longer than/i }), '8')
+      await user.click(screen.getByRole('button', { name: /generate/i }))
+
+      expect(await screen.findByText('4 tracks')).toBeInTheDocument()
+      expect(mixOrder().join(' ')).not.toMatch(/Song (intro|epic|rude)/)
+    })
+
+    it('limits the mix to a fixed number of tracks', async () => {
+      const user = renderMixer(poolGateway())
+      await selectBoth(user)
+
+      await user.click(screen.getByRole('radio', { name: /fixed number/i }))
+      const count = screen.getByRole('spinbutton', { name: /number of tracks/i })
+      await user.clear(count)
+      await user.type(count, '3')
+      await user.click(screen.getByRole('button', { name: /generate/i }))
+
+      expect(await screen.findByText('3 tracks')).toBeInTheDocument()
+      expect(mixOrder()).toHaveLength(3)
+    })
+
+    it('needs a valid number of tracks for a fixed length', async () => {
+      const user = renderMixer(poolGateway())
+      await selectBoth(user)
+
+      await user.click(screen.getByRole('radio', { name: /fixed number/i }))
+      await user.clear(screen.getByRole('spinbutton', { name: /number of tracks/i }))
+
+      expect(screen.getByRole('button', { name: /generate/i })).toBeDisabled()
+    })
+
+    it('says so when no track matches the settings', async () => {
+      const user = renderMixer(poolGateway())
+      await selectBoth(user)
+
+      await user.type(screen.getByRole('spinbutton', { name: /shorter than/i }), '20')
+      await user.click(screen.getByRole('button', { name: /generate/i }))
+
+      expect(await screen.findByText(/no tracks match/i)).toBeInTheDocument()
+    })
+  })
 })

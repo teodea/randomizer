@@ -4,6 +4,8 @@ import { buildMix, type MixItem } from '../mixer/engine'
 import { createRng, randomSeed } from '../mixer/random'
 import type { SpotifyGateway } from '../spotify/gateway'
 import type { Source } from '../spotify/types'
+import { defaultPoolForm, toPoolOptions } from './poolForm'
+import { PoolSettings } from './PoolSettings'
 import './Mixer.css'
 
 /** A mix needs at least this many sources. */
@@ -22,6 +24,7 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
   const [mix, setMix] = useState<MixItem[] | null>(null)
   const [generating, setGenerating] = useState(false)
   const [generateFailed, setGenerateFailed] = useState(false)
+  const [poolForm, setPoolForm] = useState(defaultPoolForm)
   // Bumped whenever the selection changes, so a mix built for an older selection is discarded.
   const selectionVersion = useRef(0)
 
@@ -39,6 +42,7 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
   const selected = selectedIds
     .map((id) => sources?.find((source) => source.id === id))
     .filter((source) => source !== undefined)
+  const pool = toPoolOptions(poolForm)
 
   function changeSelection(next: string[]) {
     selectionVersion.current++
@@ -58,6 +62,7 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
   }
 
   async function generate() {
+    if (!pool) return
     const version = selectionVersion.current
     setGenerating(true)
     setGenerateFailed(false)
@@ -66,7 +71,7 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
         selectedIds.map(async (id) => ({ id, tracks: await gateway.getSourceTracks(id) })),
       )
       if (version !== selectionVersion.current) return
-      setMix(buildMix(mixSources, {}, createRng(newSeed())))
+      setMix(buildMix(mixSources, { pool }, createRng(newSeed())))
     } catch {
       if (version === selectionVersion.current) setGenerateFailed(true)
     } finally {
@@ -109,6 +114,8 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
         )}
       </section>
 
+      <PoolSettings form={poolForm} onChange={setPoolForm} />
+
       <section aria-labelledby="selection-heading">
         <h2 id="selection-heading">Selected</h2>
         {selected.length === 0 ? (
@@ -130,18 +137,19 @@ export function Mixer({ gateway, newSeed = randomSeed }: MixerProps) {
           </ul>
         )}
         <p>
-          <button type="button" disabled={selected.length < MIN_SOURCES || generating} onClick={generate}>
+          <button type="button" disabled={selected.length < MIN_SOURCES || !pool || generating} onClick={generate}>
             {mix ? 'Regenerate' : 'Generate mix'}
           </button>
         </p>
         {selected.length < MIN_SOURCES && <p className="muted">Select at least {MIN_SOURCES} sources.</p>}
+        {!pool && <p className="muted">Check the track settings: durations and the number of tracks must be valid.</p>}
         {generateFailed && <p role="alert">Couldn&rsquo;t read the tracks. Try again.</p>}
       </section>
 
       {mix && (
         <section aria-labelledby="mix-heading">
           <h2 id="mix-heading">Your mix</h2>
-          <p>{trackCountLabel(mix.length)}</p>
+          <p>{mix.length === 0 ? 'No tracks match these settings.' : trackCountLabel(mix.length)}</p>
           <ol aria-label="Mix">
             {mix.map(({ track }, index) => (
               <li key={`${index}-${track.id}`}>
