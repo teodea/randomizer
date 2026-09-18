@@ -404,7 +404,7 @@ describe('Mixer', () => {
     await user.click(screen.getByRole('button', { name: /generate/i }))
 
     expect(await screen.findByText('5 tracks')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent(/hidden is unavailable/i)
+    expect(screen.getByText(/hidden is unavailable/i)).toHaveAttribute('role', 'status')
     const hidden = screen.getByRole('checkbox', { name: /hidden/i })
     expect(hidden).toBeDisabled()
     expect(hidden).not.toBeChecked()

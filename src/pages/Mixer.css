@@ -174,3 +174,8 @@
   align-items: center;
   gap: 1rem;
 }
+
+/* The track playing now, when the app knows it: the demo's pretend player, or after a reshuffle. */
+.mix-tracks li[aria-current='true'] {
+  font-weight: 700;
+}

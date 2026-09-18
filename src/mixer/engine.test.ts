@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Track } from '../spotify/types'
-import { buildMix, type MixItem, type MixOptions, type MixSource } from './engine'
+import { buildMix, reshuffleRemaining, type MixItem, type MixOptions, type MixSource } from './engine'
 import { createRng } from './random'
 
 function track(id: string, artist = `Artist ${id}`): Track {
@@ -539,5 +539,85 @@ describe('buildMix spread artists', () => {
     const mixes = Array.from({ length: 30 }, (_, seed) => buildMix([{ id: 'a', tracks }], {}, createRng(seed + 1)))
 
     expect(mixes.some((mix) => backToBack(mix) > unavoidable(mix))).toBe(true)
+  })
+})
+
+describe('reshuffleRemaining', () => {
+  const ids = (items: MixItem[]) => items.map((item) => item.track.id)
+  const sources = [source('a', 12), source('b', 12)]
+
+  it('keeps the played tracks and the one playing exactly where they are', () => {
+    const mix = buildMix(sources, {}, createRng(1))
+
+    const reshuffled = reshuffleRemaining(mix, 4, {}, createRng(2))
+
+    expect(reshuffled.slice(0, 5)).toEqual(mix.slice(0, 5))
+  })
+
+  it('re-mixes exactly the tracks that were still to come, from the same sources', () => {
+    const mix = buildMix(sources, {}, createRng(1))
+    const key = (item: MixItem) => `${item.sourceId}:${item.track.id}`
+
+    const reshuffled = reshuffleRemaining(mix, 4, {}, createRng(2))
+
+    expect(reshuffled).toHaveLength(mix.length)
+    expect(reshuffled.slice(5).map(key).sort()).toEqual(mix.slice(5).map(key).sort())
+    expect(ids(reshuffled.slice(5))).not.toEqual(ids(mix.slice(5)))
+  })
+
+  it('gives the same result for the same seed', () => {
+    const mix = buildMix(sources, {}, createRng(1))
+
+    expect(reshuffleRemaining(mix, 3, {}, createRng(9))).toEqual(reshuffleRemaining(mix, 3, {}, createRng(9)))
+  })
+
+  it('leaves the mix alone when the last track is playing', () => {
+    const mix = buildMix(sources, {}, createRng(1))
+
+    expect(reshuffleRemaining(mix, mix.length - 1, {}, createRng(2))).toEqual(mix)
+  })
+
+  it('keeps every remaining track, even if the pool settings would now leave some out', () => {
+    // The tracks were eligible when the mix was built; reshuffling only moves them.
+    const mix = buildMix(sources, {}, createRng(1))
+    const options: MixOptions = { pool: { length: 5, excludeExplicit: true, removeDuplicates: true } }
+
+    expect(reshuffleRemaining(mix, 2, options, createRng(2))).toHaveLength(mix.length)
+  })
+
+  it('still follows the weighting', () => {
+    // 36 tracks vs 12, balanced: while both last, the rest keeps an even split instead of 3:1.
+    const mix = buildMix([source('a', 36), source('b', 12)], { weighting: { mode: 'balanced' } }, createRng(1))
+    const openings = Array.from({ length: 200 }, (_, seed) =>
+      reshuffleRemaining(mix, 1, { weighting: { mode: 'balanced' } }, createRng(seed + 1)).slice(2, 12),
+    )
+
+    expect(share(openings.flat(), 'a')).toBeCloseTo(0.5, 1)
+  })
+
+  it('still follows the order', () => {
+    const options: MixOptions = { weighting: { mode: 'balanced' }, order: { mode: 'blocks', size: 2 } }
+    const mix = buildMix(sources, options, createRng(1))
+
+    const rest = reshuffleRemaining(mix, 3, options, createRng(2)).slice(4)
+
+    for (let i = 0; i + 1 < rest.length - 2; i += 2) {
+      expect(rest[i + 1].sourceId).toBe(rest[i].sourceId)
+      expect(rest[i + 2].sourceId).not.toBe(rest[i].sourceId)
+    }
+  })
+
+  it('spreads artists, starting from the one playing now', () => {
+    // Two artists, strictly alternating is possible: the rest must not open with the artist playing now.
+    const tracks = Array.from({ length: 10 }, (_, i) => track(`t${i}`, i % 2 === 0 ? 'X' : 'Y'))
+    const options: MixOptions = { spreadArtists: true }
+    for (let seed = 1; seed <= 30; seed++) {
+      const mix = buildMix([{ id: 'a', tracks }], options, createRng(seed))
+
+      const reshuffled = reshuffleRemaining(mix, 2, options, createRng(seed + 100))
+
+      const artists = reshuffled.map((item) => item.track.artists[0])
+      expect(artists.every((artist, i) => i === 0 || artist !== artists[i - 1])).toBe(true)
+    }
   })
 })

@@ -59,6 +59,9 @@ function guardSession(gateway: SpotifyGateway, onExpired: () => void): SpotifyGa
     createPlaylist: (details) => guard(gateway.createPlaylist(details)),
     replacePlaylistTracks: (playlistId, trackIds, onProgress) =>
       guard(gateway.replacePlaylistTracks(playlistId, trackIds, onProgress)),
+    replacePlaylistTail: (playlistId, kept, currentTail, nextTail, onProgress) =>
+      guard(gateway.replacePlaylistTail(playlistId, kept, currentTail, nextTail, onProgress)),
     startPlayback: (playlistId) => guard(gateway.startPlayback(playlistId)),
+    getPlaybackState: () => guard(gateway.getPlaybackState()),
   }
 }

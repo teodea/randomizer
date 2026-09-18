@@ -3,6 +3,14 @@ import type { Source, Track } from './types'
 /** How a request to start playback turned out, when Spotify gave a reason the user can act on. */
 export type PlaybackOutcome = 'started' | 'no-device' | 'premium-required'
 
+/** What the user's account is playing: the track, and the playlist it's playing from. */
+export interface PlaybackState {
+  /** Null when what's playing isn't from a playlist. */
+  playlistId: string | null
+  /** The track as it's listed in the playlist; null when what's playing isn't a track. */
+  trackId: string | null
+}
+
 /**
  * Everything the app needs from Spotify. The real implementation talks to the
  * Web API; the fake one serves in-memory data to tests and to demo mode, so
@@ -23,6 +31,20 @@ export interface SpotifyGateway {
    * written in batches; `onProgress` hears how many tracks are written so far.
    */
   replacePlaylistTracks(playlistId: string, trackIds: string[], onProgress?: (written: number) => void): Promise<void>
+  /**
+   * Replaces the tracks after `kept` with `nextTail`, where the playlist is now `kept` then
+   * `currentTail`. The kept tracks stay as they are wherever possible, so a device playing one of
+   * them carries on undisturbed. `onProgress` hears how many of `nextTail` are written so far.
+   */
+  replacePlaylistTail(
+    playlistId: string,
+    kept: string[],
+    currentTail: string[],
+    nextTail: string[],
+    onProgress?: (written: number) => void,
+  ): Promise<void>
   /** Plays the playlist from its first track, in order, on the user's active device. */
   startPlayback(playlistId: string): Promise<PlaybackOutcome>
+  /** What's playing on the user's account now; null when nothing is. */
+  getPlaybackState(): Promise<PlaybackState | null>
 }

@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { splitLibrary } from '../app/temporaryPlaylist'
 import { SourcePicker } from '../components/SourcePicker'
 import { trackCountLabel } from '../format'
-import { buildMix, type MixItem, type Weighting } from '../mixer/engine'
+import { buildMix, reshuffleRemaining, type MixItem, type MixOptions, type Weighting } from '../mixer/engine'
 import { createRng, randomSeed } from '../mixer/random'
 import { equalShares, setShare, type Shares } from '../mixer/shares'
 import { SourceUnavailableError } from '../spotify/errors'
@@ -13,6 +13,7 @@ import { defaultOrderForm, toOrder } from './orderForm'
 import { OrderSettings } from './OrderSettings'
 import { defaultPoolForm, toPoolOptions } from './poolForm'
 import { PoolSettings } from './PoolSettings'
+import { ReshuffleControls } from './ReshuffleControls'
 import { SendMix } from './SendMix'
 import { useSendMix } from './useSendMix'
 import './Mixer.css'
@@ -56,6 +57,12 @@ export function Mixer({
   // Sources found unavailable by the last Generate, to tell the user what was left out.
   const [leftOut, setLeftOut] = useState<Source[]>([])
   const [mix, setMix] = useState<MixItem[] | null>(null)
+  // The options the mix was built with, which a reshuffle keeps.
+  const [mixOptions, setMixOptions] = useState<MixOptions>({})
+  // Where playback is in the mix, when known: the demo's simulated player, or the last reshuffle.
+  const [playingIndex, setPlayingIndex] = useState<number | null>(null)
+  const [reshuffling, setReshuffling] = useState(false)
+  const [reshuffleNotice, setReshuffleNotice] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [generateFailed, setGenerateFailed] = useState(false)
   const [poolForm, setPoolForm] = useState(defaultPoolForm)
@@ -90,11 +97,20 @@ export function Mixer({
     selectionVersion.current++
     setSelectedIds(next)
     setShares(equalShares(next))
-    setMix(null)
+    showMix(null, {})
     sendMix.reset()
     setGenerateFailed(false)
     setGenerating(false)
     setLeftOut([])
+  }
+
+  /** Shows a new mix, from the start: the demo's pretend player starts on its first track. */
+  function showMix(next: MixItem[] | null, options: MixOptions) {
+    setMix(next)
+    setMixOptions(options)
+    setPlayingIndex(canSend ? null : 0)
+    setReshuffleNotice(null)
+    setReshuffling(false)
   }
 
   function deselect(id: string) {
@@ -135,11 +151,55 @@ export function Mixer({
         setLeftOut(selected.filter((source) => unavailable.includes(source.id)))
       }
       const options = { pool, weighting, order, spreadArtists: orderForm.spreadArtists }
-      setMix(mixSources.length > 0 ? buildMix(mixSources, options, createRng(newSeed())) : null)
+      showMix(mixSources.length > 0 ? buildMix(mixSources, options, createRng(newSeed())) : null, options)
     } catch {
       if (version === selectionVersion.current) setGenerateFailed(true)
     } finally {
       if (version === selectionVersion.current) setGenerating(false)
+    }
+  }
+
+  /** Where the mix is playing on Spotify, or a reason to give the user instead. */
+  async function findPlaying(current: MixItem[]): Promise<number | string> {
+    if (sendMix.state.step !== 'sent') return NOT_PLAYING
+    const playlistId = sendMix.state.playlistId
+    const playback = await gateway.getPlaybackState()
+    if (!playback || playback.playlistId !== playlistId || !playback.trackId) return NOT_PLAYING
+    // A track can be in the mix twice: prefer the copy at or after the last known position.
+    const ids = current.map(({ track }) => track.id)
+    const from = playingIndex ?? 0
+    const later = ids.indexOf(playback.trackId, from)
+    const position = later === -1 ? ids.indexOf(playback.trackId) : later
+    return position === -1 ? NOT_PLAYING : position
+  }
+
+  async function reshuffle() {
+    if (!mix) return
+    const current = mix
+    const version = selectionVersion.current
+    setReshuffling(true)
+    setReshuffleNotice(null)
+    try {
+      const position = canSend ? await findPlaying(current) : (playingIndex ?? 0)
+      if (version !== selectionVersion.current) return
+      if (typeof position === 'string') return setReshuffleNotice(position)
+      const rest = current.length - position - 1
+      if (rest === 0) return setReshuffleNotice(LAST_TRACK)
+
+      const next = reshuffleRemaining(current, position, mixOptions, createRng(newSeed()))
+      if (canSend) {
+        const ids = (items: MixItem[]) => items.map(({ track }) => track.id)
+        const kept = ids(current.slice(0, position + 1))
+        const written = await sendMix.replaceTail(kept, ids(current.slice(position + 1)), ids(next.slice(position + 1)))
+        if (!written || version !== selectionVersion.current) return
+      }
+      setMix(next)
+      setPlayingIndex(position)
+      setReshuffleNotice(`Reshuffled the ${trackCountLabel(rest)} after the one playing now.`)
+    } catch {
+      if (version === selectionVersion.current) setReshuffleNotice('Couldn’t check what’s playing on Spotify. Try again.')
+    } finally {
+      if (version === selectionVersion.current) setReshuffling(false)
     }
   }
 
@@ -249,7 +309,7 @@ export function Mixer({
         <p>
           <button
             type="button"
-            disabled={selected.length < MIN_SOURCES || !pool || !order || generating || sendMix.busy}
+            disabled={selected.length < MIN_SOURCES || !pool || !order || generating || sendMix.busy || reshuffling}
             onClick={generate}
           >
             {mix ? 'Regenerate' : 'Generate mix'}
@@ -275,16 +335,33 @@ export function Mixer({
             (canSend ? (
               <SendMix
                 state={sendMix.state}
-                busy={sendMix.busy}
-                onSend={() => sendMix.send(mix.map(({ track }) => track.id))}
+                busy={sendMix.busy || reshuffling}
+                onSend={() => {
+                  setPlayingIndex(null)
+                  setReshuffleNotice(null)
+                  sendMix.send(mix.map(({ track }) => track.id))
+                }}
                 onRetryPlayback={sendMix.retryPlayback}
               />
             ) : (
               <p className="muted">Demo mode: log in to play a mix on Spotify.</p>
             ))}
-          <ol aria-label="Mix">
+          {mix.length > 0 && (!canSend || sendMix.state.step === 'sent' || reshuffling) && (
+            <ReshuffleControls
+              simulatedPosition={canSend ? null : (playingIndex ?? 0)}
+              mixLength={mix.length}
+              disabled={reshuffling || sendMix.busy}
+              notice={reshuffleNotice}
+              onNextTrack={() => {
+                setPlayingIndex((index) => Math.min((index ?? 0) + 1, mix.length - 1))
+                setReshuffleNotice(null)
+              }}
+              onReshuffle={reshuffle}
+            />
+          )}
+          <ol className="mix-tracks" aria-label="Mix">
             {mix.map(({ track }, index) => (
-              <li key={`${index}-${track.id}`}>
+              <li key={`${index}-${track.id}`} aria-current={index === playingIndex ? 'true' : undefined}>
                 {track.name} — {track.artists.join(', ')}
               </li>
             ))}
@@ -294,6 +371,9 @@ export function Mixer({
     </main>
   )
 }
+
+const NOT_PLAYING = 'Your mix isn’t playing on Spotify right now. Start it there, then try again.'
+const LAST_TRACK = 'The last track of the mix is playing: there’s nothing left to reshuffle.'
 
 function unavailableNotice(sources: Source[]) {
   const names = sources.map((source) => source.name)

@@ -1,5 +1,5 @@
 import { SessionExpiredError, SourceUnavailableError } from './errors'
-import type { PlaybackOutcome, SpotifyGateway } from './gateway'
+import type { PlaybackOutcome, PlaybackState, SpotifyGateway } from './gateway'
 import type { Source, Track } from './types'
 
 const API = 'https://api.spotify.com/v1'
@@ -9,7 +9,7 @@ export const LIKED_SONGS_ID = 'liked-songs'
 
 /** The Web API's largest page for playlists, playlist items and saved tracks. */
 const PAGE_SIZE = 50
-/** The most tracks one request can add to a playlist. */
+/** The most tracks one request can add to, or remove from, a playlist. */
 const WRITE_BATCH_SIZE = 100
 /** How many times to wait out a rate limit before giving up. */
 const MAX_RATE_LIMIT_RETRIES = 5
@@ -55,6 +55,13 @@ interface ApiTrack {
   external_ids?: { isrc?: string } | null
   is_local?: boolean
   is_playable?: boolean
+  /** The track as the playlist lists it, when Spotify plays a copy available in the user's market. */
+  linked_from?: { id?: string } | null
+}
+
+interface ApiPlaybackState {
+  context?: { type?: string; uri?: string } | null
+  item?: ApiTrack | { type: string; id?: string } | null
 }
 
 interface ApiPlaylistEntry {
@@ -141,6 +148,23 @@ export function createWebGateway({
     }
   }
 
+  async function replacePlaylistTracks(
+    playlistId: string,
+    trackIds: string[],
+    onProgress?: (written: number) => void,
+  ): Promise<void> {
+    const url = playlistItemsUrl(playlistId)
+    const uris = trackIds.map(trackUri)
+    // PUT replaces everything with the first batch; POST appends the rest.
+    await requestOk(url, { method: 'PUT', body: { uris: uris.slice(0, WRITE_BATCH_SIZE) } })
+    onProgress?.(Math.min(WRITE_BATCH_SIZE, uris.length))
+    for (let start = WRITE_BATCH_SIZE; start < uris.length; start += WRITE_BATCH_SIZE) {
+      const batch = uris.slice(start, start + WRITE_BATCH_SIZE)
+      await requestOk(url, { method: 'POST', body: { uris: batch } })
+      onProgress?.(start + batch.length)
+    }
+  }
+
   return {
     async listSources(): Promise<Source[]> {
       const [me, liked, playlists] = await Promise.all([
@@ -185,14 +209,26 @@ export function createWebGateway({
       return playlist.id
     },
 
-    async replacePlaylistTracks(playlistId, trackIds, onProgress) {
-      const url = `${API}/playlists/${encodeURIComponent(playlistId)}/items`
-      const uris = trackIds.map((id) => `spotify:track:${id}`)
-      // PUT replaces everything with the first batch; POST appends the rest.
-      await requestOk(url, { method: 'PUT', body: { uris: uris.slice(0, WRITE_BATCH_SIZE) } })
-      onProgress?.(Math.min(WRITE_BATCH_SIZE, uris.length))
-      for (let start = WRITE_BATCH_SIZE; start < uris.length; start += WRITE_BATCH_SIZE) {
-        const batch = uris.slice(start, start + WRITE_BATCH_SIZE)
+    replacePlaylistTracks,
+
+    async replacePlaylistTail(playlistId, kept, currentTail, nextTail, onProgress) {
+      // Removing a track by URI removes every copy of it. If a kept track would go too, rewrite it all.
+      const keptIds = new Set(kept)
+      if (currentTail.some((id) => keptIds.has(id))) {
+        await replacePlaylistTracks(playlistId, [...kept, ...nextTail], (written) =>
+          onProgress?.(Math.max(0, written - kept.length)),
+        )
+        return
+      }
+      const url = playlistItemsUrl(playlistId)
+      const removed = [...new Set(currentTail)].map(trackUri)
+      for (let start = 0; start < removed.length; start += WRITE_BATCH_SIZE) {
+        const items = removed.slice(start, start + WRITE_BATCH_SIZE).map((uri) => ({ uri }))
+        await requestOk(url, { method: 'DELETE', body: { items } })
+      }
+      const added = nextTail.map(trackUri)
+      for (let start = 0; start < added.length; start += WRITE_BATCH_SIZE) {
+        const batch = added.slice(start, start + WRITE_BATCH_SIZE)
         await requestOk(url, { method: 'POST', body: { uris: batch } })
         onProgress?.(start + batch.length)
       }
@@ -213,6 +249,20 @@ export function createWebGateway({
       // With shuffle on, Spotify would scramble the mix's order. Playback has started either way.
       await request(`${API}/me/player/shuffle?state=false`, { method: 'PUT' }).catch(() => undefined)
       return 'started'
+    },
+
+    async getPlaybackState(): Promise<PlaybackState | null> {
+      const response = await requestOk(`${API}/me/player?market=from_token`)
+      // 204: nothing is playing on any device.
+      if (response.status === 204) return null
+      const state: ApiPlaybackState | null = await response.json().catch(() => null)
+      if (!state) return null
+      const context = state.context?.type === 'playlist' ? state.context.uri : undefined
+      const item = state.item?.type === 'track' ? (state.item as ApiTrack) : null
+      return {
+        playlistId: context?.split(':').at(-1) ?? null,
+        trackId: item ? (item.linked_from?.id ?? item.id) : null,
+      }
     },
   }
 }
@@ -257,6 +307,14 @@ function mapPlaylist(playlist: ApiPlaylist, userId: string): Source {
     description: playlist.description || null,
     ownedByUser: playlist.owner?.id === userId,
   }
+}
+
+function playlistItemsUrl(playlistId: string): string {
+  return `${API}/playlists/${encodeURIComponent(playlistId)}/items`
+}
+
+function trackUri(trackId: string): string {
+  return `spotify:track:${trackId}`
 }
 
 function retryAfterMs(response: Response): number {

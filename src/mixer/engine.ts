@@ -70,9 +70,36 @@ export interface MixItem {
 /** Builds a mix. Pure: the same sources, options and seed give the same result. */
 export function buildMix(sources: MixSource[], options: MixOptions, rng: Rng): MixItem[] {
   const pool = options.pool ?? {}
+  return arrange(eligibleSources(sources, pool), options, rng, pool.length)
+}
+
+/**
+ * Re-mixes the part of a mix still to come, with the same options. `position` is the track playing
+ * now: it and every track before it stay where they are. The tracks after it are mixed again, with
+ * the same weighting, order and artist spreading; they were eligible when the mix was built, so
+ * the pool settings leave them all in. Pure, like `buildMix`.
+ */
+export function reshuffleRemaining(mix: MixItem[], position: number, options: MixOptions, rng: Rng): MixItem[] {
+  const kept = mix.slice(0, position + 1)
+  const rest = mix.slice(position + 1)
+  if (rest.length === 0) return mix
+  // Sources in the order they first came up in the mix, which is close to the order they were selected in.
+  const sourceIds = [...new Set(mix.map((item) => item.sourceId))]
+  const sources = sourceIds.map((id) => ({
+    id,
+    tracks: rest.filter((item) => item.sourceId === id).map((item) => item.track),
+  }))
+  return [...kept, ...arrange(sources, options, rng, undefined, kept.at(-1)?.track)]
+}
+
+/**
+ * The weighting and order stages over sources already through the pool: draws up to `length`
+ * tracks (all of them without it), then spreads artists if asked, starting after `playedLast`.
+ */
+function arrange(sources: MixSource[], options: MixOptions, rng: Rng, length?: number, playedLast?: Track): MixItem[] {
   const weighting = options.weighting ?? { mode: 'uniform' }
   const order = options.order ?? { mode: 'random' }
-  const remaining = eligibleSources(sources, pool).map((source) => ({
+  const remaining = sources.map((source) => ({
     id: source.id,
     weight: fixedWeight(weighting, source.id),
     tracks: shuffle(source.tracks, rng),
@@ -83,7 +110,7 @@ export function buildMix(sources: MixSource[], options: MixOptions, rng: Rng): M
   const mix: MixItem[] = []
   for (;;) {
     const live = remaining.filter((source) => source.tracks.length > 0)
-    if (live.length === 0 || mix.length === pool.length) break
+    if (live.length === 0 || mix.length === length) break
     // Uniform weighs each source by what it has left, which makes every remaining track equally likely.
     let weights = live.map((source) => source.weight ?? source.tracks.length)
     // Only zero-weight sources are left: they share out what remains equally.
@@ -96,11 +123,11 @@ export function buildMix(sources: MixSource[], options: MixOptions, rng: Rng): M
     }
     const source = live[takeTurn(live, weights)]
     const turnLength = order.mode === 'blocks' ? Math.max(1, Math.floor(order.size)) : 1
-    for (let i = 0; i < turnLength && source.tracks.length > 0 && mix.length !== pool.length; i++) {
+    for (let i = 0; i < turnLength && source.tracks.length > 0 && mix.length !== length; i++) {
       mix.push({ track: source.tracks.pop()!, sourceId: source.id })
     }
   }
-  return options.spreadArtists ? spreadArtists(mix) : mix
+  return options.spreadArtists ? spreadArtists(mix, playedLast && artistKey(playedLast)) : mix
 }
 
 /**
@@ -221,9 +248,9 @@ function normalise(text: string): string {
  * the mix, each slot takes the earliest unplaced track by a different artist than the one
  * before, from the source the slot had when there is one, so blocks and turns stay intact. An artist holding more than half of what is left must go now,
  * or it would be forced into repeats later. This gives the fewest repeats possible and leaves the
- * order alone wherever it was already fine.
+ * order alone wherever it was already fine. `playedLast` is the artist heard just before the mix, if any.
  */
-function spreadArtists(mix: MixItem[]): MixItem[] {
+function spreadArtists(mix: MixItem[], playedLast?: string): MixItem[] {
   const end = mix.length
   const keys = mix.map((item) => artistKey(item.track))
   // The tracks not placed yet, as a doubly linked list over their positions in the mix.
@@ -249,7 +276,7 @@ function spreadArtists(mix: MixItem[]): MixItem[] {
   const cursors = new Map([...positions.keys()].map((key) => [key, 0]))
 
   const result: MixItem[] = []
-  let previous: string | undefined
+  let previous = playedLast
   for (let slot = 0; slot < end; slot++) {
     let chosen = -1
     // Two artists can't both hold more than half, so the group at `most` then has just one.

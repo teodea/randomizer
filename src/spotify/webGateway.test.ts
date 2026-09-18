@@ -335,6 +335,78 @@ describe('real Spotify gateway: temporary playlist', () => {
   })
 })
 
+describe('real Spotify gateway: reshuffling', () => {
+  it('reads what is playing and from which playlist', async () => {
+    const { gateway, requests } = setup((url) =>
+      url.pathname === '/v1/me/player'
+        ? json({ is_playing: true, context: { type: 'playlist', uri: 'spotify:playlist:tmp' }, item: track('t7') })
+        : undefined,
+    )
+
+    expect(await gateway.getPlaybackState()).toEqual({ playlistId: 'tmp', trackId: 't7' })
+    expect(requests[0].searchParams.get('market')).toBe('from_token')
+  })
+
+  it('names the track as it is in the playlist when Spotify plays a relinked copy', async () => {
+    const { gateway } = setup((url) =>
+      url.pathname === '/v1/me/player'
+        ? json({
+            context: { type: 'playlist', uri: 'spotify:playlist:tmp' },
+            item: track('regional', { linked_from: { id: 'original' } }),
+          })
+        : undefined,
+    )
+
+    expect(await gateway.getPlaybackState()).toEqual({ playlistId: 'tmp', trackId: 'original' })
+  })
+
+  it('reports nothing playing, or something not from a playlist', async () => {
+    const nothing = setup((url) => (url.pathname === '/v1/me/player' ? new Response(null, { status: 204 }) : undefined))
+    const album = setup((url) =>
+      url.pathname === '/v1/me/player'
+        ? json({ context: { type: 'album', uri: 'spotify:album:x' }, item: { type: 'episode', id: 'e1' } })
+        : undefined,
+    )
+
+    expect(await nothing.gateway.getPlaybackState()).toBeNull()
+    expect(await album.gateway.getPlaybackState()).toEqual({ playlistId: null, trackId: null })
+  })
+
+  it('swaps only the tracks after the kept ones, so the kept ones stay in place', async () => {
+    const { gateway, sent } = setup((url) =>
+      url.pathname === '/v1/playlists/tmp/items' ? json({ snapshot_id: 'snap' }) : undefined,
+    )
+    const rest = Array.from({ length: 150 }, (_, i) => `r${i}`)
+    const progress: number[] = []
+
+    await gateway.replacePlaylistTail('tmp', ['k1', 'k2'], rest, [...rest].reverse(), (written) =>
+      progress.push(written),
+    )
+
+    expect(sent.map(({ method }) => method)).toEqual(['DELETE', 'DELETE', 'POST', 'POST'])
+    const removed = sent.slice(0, 2).flatMap(({ body }) => (body as { items: { uri: string }[] }).items)
+    expect(removed.map(({ uri }) => uri)).toEqual(rest.map((id) => `spotify:track:${id}`))
+    expect(sent.slice(2).flatMap(uris)).toEqual([...rest].reverse().map((id) => `spotify:track:${id}`))
+    expect(progress).toEqual([100, 150])
+  })
+
+  it('rewrites the whole playlist when a track to move also plays earlier', async () => {
+    // Removing a track by URI removes every copy of it, the kept one included.
+    const { gateway, sent } = setup((url) =>
+      url.pathname === '/v1/playlists/tmp/items' ? json({ snapshot_id: 'snap' }) : undefined,
+    )
+    const progress: number[] = []
+
+    await gateway.replacePlaylistTail('tmp', ['k1', 'r1'], ['r1', 'r2'], ['r2', 'r1'], (written) =>
+      progress.push(written),
+    )
+
+    expect(sent.map(({ method }) => method)).toEqual(['PUT'])
+    expect(uris(sent[0])).toEqual(['k1', 'r1', 'r2', 'r1'].map((id) => `spotify:track:${id}`))
+    expect(progress).toEqual([2])
+  })
+})
+
 describe('real Spotify gateway: HTTP', () => {
   it('waits for Retry-After and tries again when rate limited', async () => {
     let calls = 0

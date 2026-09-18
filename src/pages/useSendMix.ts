@@ -66,6 +66,31 @@ export function useSendMix(gateway: SpotifyGateway, knownPlaylistId: string | nu
       setState({ step: 'writing', written: 0, total: trackIds.length })
       queue.current = queue.current.then(() => write(trackIds, run))
     },
+    /**
+     * Replaces the tracks after `kept` in the sent playlist with `nextTail`, leaving the kept ones,
+     * and so playback, where they are. Resolves to whether it worked; a failure shows as `failed`.
+     */
+    replaceTail(kept: string[], currentTail: string[], nextTail: string[]): Promise<boolean> {
+      if (state.step !== 'sent') return Promise.resolve(false)
+      const { playlistId, playback } = state
+      const run = ++version.current
+      const update = updateFor(run)
+      setState({ step: 'writing', written: 0, total: nextTail.length })
+      const done = queue.current.then(async () => {
+        try {
+          await gateway.replacePlaylistTail(playlistId, kept, currentTail, nextTail, (written) =>
+            update({ step: 'writing', written, total: nextTail.length }),
+          )
+        } catch {
+          update({ step: 'failed' })
+          return false
+        }
+        update({ step: 'sent', playlistId, playback })
+        return true
+      })
+      queue.current = done.then(() => undefined)
+      return done
+    },
     /** Tries to start playback again, e.g. once the user has opened Spotify on a device. */
     retryPlayback() {
       if (state.step !== 'sent') return
