@@ -198,6 +198,11 @@ export function createWebGateway({
       }
     },
 
+    async removePlaylist(playlistId) {
+      const uris = encodeURIComponent(`spotify:playlist:${playlistId}`)
+      await requestOk(`${API}/me/library?uris=${uris}`, { method: 'DELETE' })
+    },
+
     async startPlayback(playlistId): Promise<PlaybackOutcome> {
       const url = `${API}/me/player/play`
       const response = await request(url, {

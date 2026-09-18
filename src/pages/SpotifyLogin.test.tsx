@@ -72,10 +72,10 @@ describe('a logged-in user', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Log out' }))
 
+    expect(await screen.findByRole('button', { name: 'Log in with Spotify' })).toBeEnabled()
     expect(auth.isLoggedIn()).toBe(false)
     expect(router.state.location.pathname).toBe('/')
     expect(screen.getByRole('status')).toHaveTextContent(/logged out/i)
-    expect(screen.getByRole('button', { name: 'Log in with Spotify' })).toBeEnabled()
   })
 
   it('is sent back to log in with a clear message when the session has expired', async () => {

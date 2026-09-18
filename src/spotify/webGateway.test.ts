@@ -279,6 +279,23 @@ describe('real Spotify gateway: temporary playlist', () => {
     expect(waits).toEqual(Array(9).fill(2000))
   })
 
+  it('removes a playlist by taking it out of the user’s library', async () => {
+    const { gateway, sent } = setup((url, _token, { method }) =>
+      method === 'DELETE' && url.pathname === '/v1/me/library' ? new Response(null, { status: 200 }) : undefined,
+    )
+
+    await gateway.removePlaylist('tmp')
+
+    expect(sent).toHaveLength(1)
+    expect(sent[0].url.searchParams.get('uris')).toBe('spotify:playlist:tmp')
+  })
+
+  it('fails when the playlist can’t be removed', async () => {
+    const { gateway } = setup(() => json({ error: { status: 403 } }, 403))
+
+    await expect(gateway.removePlaylist('tmp')).rejects.toThrow(/403/)
+  })
+
   it('plays the playlist in order from its first track', async () => {
     const { gateway, sent } = setup((url) =>
       url.pathname === '/v1/me/player/play' || url.pathname === '/v1/me/player/shuffle'

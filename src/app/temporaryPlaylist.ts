@@ -1,3 +1,4 @@
+import type { SpotifyGateway } from '../spotify/gateway'
 import type { Source } from '../spotify/types'
 
 /**
@@ -23,6 +24,15 @@ export function splitLibrary(library: Source[]): { sources: Source[]; temporaryP
     sources: library.filter((source) => !isTemporaryPlaylist(source)),
     temporaryPlaylistId: library.find(isTemporaryPlaylist)?.id ?? null,
   }
+}
+
+/**
+ * Removes the temporary playlist from the user's library. With no ID to go on,
+ * it looks the playlist up first; `null` means there's known to be none.
+ */
+export async function removeTemporaryPlaylist(gateway: SpotifyGateway, playlistId?: string | null): Promise<void> {
+  const id = playlistId === undefined ? splitLibrary(await gateway.listSources()).temporaryPlaylistId : playlistId
+  if (id) await gateway.removePlaylist(id)
 }
 
 /** The playlist's page on Spotify, which opens the app where it's installed. */
