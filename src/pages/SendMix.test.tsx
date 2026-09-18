@@ -211,6 +211,31 @@ describe('sending a mix to Spotify', () => {
     expect(await temporaryPlaylists(gateway)).toHaveLength(1)
   })
 
+  it('creates the playlist on the next try when creating it failed', async () => {
+    const gateway = fake()
+    let failNextCreate = true
+    const flaky: SpotifyGateway = {
+      ...gateway,
+      createPlaylist: (details) => {
+        if (failNextCreate) {
+          failNextCreate = false
+          return Promise.reject(new Error('Network down'))
+        }
+        return gateway.createPlaylist(details)
+      },
+    }
+    const user = renderSpotifyMixer(flaky)
+    await generateMix(user)
+
+    await user.click(screen.getByRole('button', { name: 'Play on Spotify' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn.t send the mix/i)
+    expect(await temporaryPlaylists(gateway)).toHaveLength(0)
+
+    await user.click(screen.getByRole('button', { name: 'Play on Spotify' }))
+    expect(await screen.findByText(/playing your mix/i)).toBeInTheDocument()
+    expect(await temporaryPlaylists(gateway)).toHaveLength(1)
+  })
+
   it('isn’t offered in demo mode', async () => {
     renderAt('/demo')
     const user = userEvent.setup()

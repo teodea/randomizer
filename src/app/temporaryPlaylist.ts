@@ -17,6 +17,14 @@ export function isTemporaryPlaylist(source: Source): boolean {
   return source.ownedByUser && (source.description ?? '').includes(MARKER)
 }
 
+/** The sources to offer, without the temporary playlist, and the temporary playlist's ID if there is one. */
+export function splitLibrary(library: Source[]): { sources: Source[]; temporaryPlaylistId: string | null } {
+  return {
+    sources: library.filter((source) => !isTemporaryPlaylist(source)),
+    temporaryPlaylistId: library.find(isTemporaryPlaylist)?.id ?? null,
+  }
+}
+
 /** The playlist's page on Spotify, which opens the app where it's installed. */
 export function playlistUrl(playlistId: string): string {
   return `https://open.spotify.com/playlist/${encodeURIComponent(playlistId)}`

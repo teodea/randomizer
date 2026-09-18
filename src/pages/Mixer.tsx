@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import { isTemporaryPlaylist } from '../app/temporaryPlaylist'
+import { splitLibrary } from '../app/temporaryPlaylist'
 import { SourcePicker } from '../components/SourcePicker'
 import { trackCountLabel } from '../format'
 import { buildMix, type MixItem, type Weighting } from '../mixer/engine'
@@ -72,8 +72,10 @@ export function Mixer({
   }, [gateway])
 
   // The app's own playlist is where mixes go, never something to mix from.
-  const sources = library?.filter((source) => !isTemporaryPlaylist(source)) ?? null
-  const sendMix = useSendMix(gateway, library?.find(isTemporaryPlaylist)?.id ?? null)
+  const { sources, temporaryPlaylistId } = library
+    ? splitLibrary(library)
+    : { sources: null, temporaryPlaylistId: null }
+  const sendMix = useSendMix(gateway, temporaryPlaylistId)
 
   const selected = selectedIds
     .map((id) => sources?.find((source) => source.id === id))

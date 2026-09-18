@@ -23,8 +23,13 @@ export function useSendMix(gateway: SpotifyGateway, knownPlaylistId: string | nu
   // Sends run one after another: two at once could each create a playlist.
   const queue = useRef<Promise<void>>(Promise.resolve())
 
+  /** Shows `next`, unless a later send or a reset has taken over since `run` started. */
+  function updateFor(run: number) {
+    return (next: SendState) => run === version.current && setState(next)
+  }
+
   async function play(playlistId: string, run: number) {
-    const update = (next: SendState) => run === version.current && setState(next)
+    const update = updateFor(run)
     update({ step: 'starting', playlistId })
     try {
       update({ step: 'sent', playlistId, playback: await gateway.startPlayback(playlistId) })
@@ -34,11 +39,12 @@ export function useSendMix(gateway: SpotifyGateway, knownPlaylistId: string | nu
   }
 
   async function write(trackIds: string[], run: number) {
-    const update = (next: SendState) => run === version.current && setState(next)
+    const update = updateFor(run)
     update({ step: 'writing', written: 0, total: trackIds.length })
     let playlistId: string
     try {
-      playlistId = createdId.current ?? knownPlaylistId ?? (createdId.current = await gateway.createPlaylist(TEMPORARY_PLAYLIST))
+      playlistId =
+        createdId.current ?? knownPlaylistId ?? (createdId.current = await gateway.createPlaylist(TEMPORARY_PLAYLIST))
       await gateway.replacePlaylistTracks(playlistId, trackIds, (written) =>
         update({ step: 'writing', written, total: trackIds.length }),
       )

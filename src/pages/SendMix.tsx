@@ -21,7 +21,7 @@ export function SendMix({ state, busy, onSend, onRetryPlayback }: SendMixProps) 
         <p role="alert">Couldn&rsquo;t send the mix to Spotify. Try again.</p>
       ) : (
         <div role="status">
-          <SendProgress state={state} onRetryPlayback={onRetryPlayback} />
+          <SendStatus state={state} onRetryPlayback={onRetryPlayback} />
         </div>
       )}
     </div>
@@ -30,7 +30,7 @@ export function SendMix({ state, busy, onSend, onRetryPlayback }: SendMixProps) 
 
 const playlistName = <>&ldquo;{TEMPORARY_PLAYLIST.name}&rdquo;</>
 
-function SendProgress({ state, onRetryPlayback }: { state: SendState; onRetryPlayback: () => void }) {
+function SendStatus({ state, onRetryPlayback }: { state: SendState; onRetryPlayback: () => void }) {
   switch (state.step) {
     case 'writing':
       return (

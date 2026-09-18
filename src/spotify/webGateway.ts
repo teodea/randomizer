@@ -23,6 +23,12 @@ export interface WebGatewayOptions {
 // The parts of the Web API's responses the app reads. The February 2026 changes
 // renamed some fields; both names are accepted while Spotify serves either.
 
+interface RequestOptions {
+  method?: string
+  /** Sent as JSON. */
+  body?: unknown
+}
+
 interface Paging<T> {
   items: (T | null)[]
   total?: number
@@ -68,7 +74,7 @@ export function createWebGateway({
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 }: WebGatewayOptions): SpotifyGateway {
   /** Calls a Web API URL, refreshing the token once on 401 and waiting out rate limits. */
-  async function request(url: string, { method = 'GET', body }: { method?: string; body?: unknown } = {}) {
+  async function request(url: string, { method = 'GET', body }: RequestOptions = {}) {
     let token = await getAccessToken()
     let refreshed = false
     for (let rateLimited = 0; ; ) {
@@ -99,14 +105,14 @@ export function createWebGateway({
   }
 
   /** Like `request`, but any answer other than a success is an `HttpError`. */
-  async function send(url: string, options?: { method?: string; body?: unknown }): Promise<Response> {
+  async function requestOk(url: string, options?: RequestOptions): Promise<Response> {
     const response = await request(url, options)
     if (!response.ok) throw new HttpError(response.status, url)
     return response
   }
 
   async function getJson<T>(url: string): Promise<T> {
-    return (await send(url)).json() as Promise<T>
+    return (await requestOk(url)).json() as Promise<T>
   }
 
   /** Every item across all pages, following `next`. */
@@ -138,6 +144,7 @@ export function createWebGateway({
   return {
     async listSources(): Promise<Source[]> {
       const [me, liked, playlists] = await Promise.all([
+        // Playlists name their owner by `id`, so that's what to compare, not `account_id`.
         getJson<{ id: string }>(`${API}/me`),
         getJson<Paging<ApiSavedTrack>>(`${API}/me/tracks?limit=1`),
         getAll<ApiPlaylist>(`${API}/me/playlists?limit=${PAGE_SIZE}`),
@@ -170,7 +177,7 @@ export function createWebGateway({
 
     async createPlaylist({ name, description }) {
       // New playlists are public unless told otherwise.
-      const response = await send(`${API}/me/playlists`, {
+      const response = await requestOk(`${API}/me/playlists`, {
         method: 'POST',
         body: { name, description, public: false },
       })
@@ -182,11 +189,11 @@ export function createWebGateway({
       const url = `${API}/playlists/${encodeURIComponent(playlistId)}/items`
       const uris = trackIds.map((id) => `spotify:track:${id}`)
       // PUT replaces everything with the first batch; POST appends the rest.
-      await send(url, { method: 'PUT', body: { uris: uris.slice(0, WRITE_BATCH_SIZE) } })
+      await requestOk(url, { method: 'PUT', body: { uris: uris.slice(0, WRITE_BATCH_SIZE) } })
       onProgress?.(Math.min(WRITE_BATCH_SIZE, uris.length))
       for (let start = WRITE_BATCH_SIZE; start < uris.length; start += WRITE_BATCH_SIZE) {
         const batch = uris.slice(start, start + WRITE_BATCH_SIZE)
-        await send(url, { method: 'POST', body: { uris: batch } })
+        await requestOk(url, { method: 'POST', body: { uris: batch } })
         onProgress?.(start + batch.length)
       }
     },
