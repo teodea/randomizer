@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Impeccable design context — method artifacts, kept out of the public repo
+# (CLAUDE.md: only what a code reader needs goes to GitHub)
+PRODUCT.md
+DESIGN.md
+.impeccable/
