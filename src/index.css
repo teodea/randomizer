@@ -689,6 +689,22 @@ progress::-moz-progress-bar {
  *   desktop  ≥ 90rem   the board, wider, with larger sleeves
  */
 @media (min-width: 64rem) {
+  /*
+   * The type steps with the room, because the room changed what the room is.
+   * The whole scale was drawn at 390px and read at arm's length; at 1472px it is
+   * read at a desk, roughly twice as far away, and 12px mono stops being small
+   * and starts being unreadable. Everything in this system is authored in rem —
+   * type, the spacing rhythm, the tap target, the measure, the sheet's cell — so
+   * one step on the root moves all of them together and the proportions do not
+   * change at all. Only the distance they are read from does.
+   *
+   * Media queries resolve rem against the initial 16px, never against this, so
+   * the four views stay at the widths they are documented at.
+   */
+  :root {
+    font-size: 17px;
+  }
+
   :root:has(.workbench) {
     --measure: 74rem;
   }
@@ -700,6 +716,10 @@ progress::-moz-progress-bar {
 }
 
 @media (min-width: 90rem) {
+  :root {
+    font-size: 18px;
+  }
+
   :root:has(.workbench) {
     --measure: 92rem;
   }
