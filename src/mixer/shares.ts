@@ -27,6 +27,14 @@ export function setShare(shares: Shares, id: string, value: number): Shares {
 }
 
 /**
+ * What each source's share works out to for a given set of weights, so the mixer
+ * can show the blend every weighting mode produces and not only the custom one.
+ */
+export function sharesByWeight(parts: { id: string; weight: number }[]): Shares {
+  return apportion(100, parts)
+}
+
+/**
  * Splits `total` whole units in proportion to the weights (largest remainder),
  * so the parts are whole numbers that add up to exactly `total`.
  */

@@ -9,7 +9,7 @@ export function PoolSettings({ form, onChange }: PoolSettingsProps) {
   const set = <K extends keyof PoolForm>(key: K, value: PoolForm[K]) => onChange({ ...form, [key]: value })
 
   return (
-    <section aria-labelledby="pool-heading">
+    <section className="block" id="mix-settings" aria-labelledby="pool-heading">
       <h2 id="pool-heading">Tracks</h2>
       <div className="settings-fields">
         <label className="check">
@@ -39,7 +39,7 @@ export function PoolSettings({ form, onChange }: PoolSettingsProps) {
             aria-label="Skip tracks shorter than (minutes)"
             onChange={(event) => set('minMinutes', event.target.value)}
           />
-          min
+          <span className="unit">min</span>
         </label>
         <label className="field">
           Skip tracks longer than
@@ -52,7 +52,7 @@ export function PoolSettings({ form, onChange }: PoolSettingsProps) {
             aria-label="Skip tracks longer than (minutes)"
             onChange={(event) => set('maxMinutes', event.target.value)}
           />
-          min
+          <span className="unit">min</span>
         </label>
         <fieldset>
           <legend>Mix length</legend>
@@ -85,7 +85,7 @@ export function PoolSettings({ form, onChange }: PoolSettingsProps) {
                 aria-label="Number of tracks"
                 onChange={(event) => set('length', event.target.value)}
               />
-              tracks
+              <span className="unit">tracks</span>
             </label>
           )}
         </fieldset>

@@ -43,6 +43,15 @@ const mixTrackNames = () =>
     .getAllByRole('listitem')
     .map((item) => item.textContent!.split(' — ')[0])
 
+/**
+ * The page lists only the first rows of a mix; Spotify holds all of it. So the
+ * playlist is checked for completeness and the page for what it claims to show.
+ */
+function expectWrittenMatchesPage(written: string[]) {
+  const shown = mixTrackNames()
+  expect(written.slice(0, shown.length)).toEqual(shown)
+}
+
 async function temporaryPlaylists(gateway: SpotifyGateway) {
   return (await gateway.listSources()).filter(isTemporaryPlaylist)
 }
@@ -67,7 +76,7 @@ describe('sending a mix to Spotify', () => {
     const created = await temporaryPlaylists(gateway)
     expect(created).toHaveLength(1)
     expect(created[0]).toMatchObject({ name: TEMPORARY_PLAYLIST.name, ownedByUser: true })
-    expect(await trackNames(gateway, created[0].id)).toEqual(mixTrackNames())
+    expectWrittenMatchesPage(await trackNames(gateway, created[0].id))
     expect(gateway.nowPlaying()).toBe(created[0].id)
   })
 
@@ -86,7 +95,7 @@ describe('sending a mix to Spotify', () => {
     const after = await temporaryPlaylists(gateway)
     expect(after).toHaveLength(1)
     expect(after[0].id).toBe(first.id)
-    expect(await trackNames(gateway, first.id)).toEqual(mixTrackNames())
+    expectWrittenMatchesPage(await trackNames(gateway, first.id))
   })
 
   it('reuses a temporary playlist left from an earlier visit and hides it from the sources', async () => {
@@ -105,7 +114,7 @@ describe('sending a mix to Spotify', () => {
 
     const temporary = await temporaryPlaylists(gateway)
     expect(temporary.map((playlist) => playlist.id)).toEqual(['old-mix'])
-    expect(await trackNames(gateway, 'old-mix')).toEqual(mixTrackNames())
+    expectWrittenMatchesPage(await trackNames(gateway, 'old-mix'))
   })
 
   it('never takes a playlist the user doesn’t own, or one without the marker, for its own', async () => {

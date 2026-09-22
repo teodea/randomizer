@@ -1,6 +1,8 @@
 import { useId, useState } from 'react'
 import { trackCountLabel } from '../format'
+import { sourceUrl } from '../spotify/links'
 import type { Source } from '../spotify/types'
+import { OpenIcon } from './icons'
 
 interface SourcePickerProps {
   sources: Source[]
@@ -10,7 +12,10 @@ interface SourcePickerProps {
   onToggle: (id: string) => void
 }
 
-/** The list of sources to pick from, searchable by name. */
+/**
+ * The rack: one spine per source, searchable by name. A selected spine is struck
+ * with its place in the rotation, which is the same number the share rail uses.
+ */
 export function SourcePicker({ sources, selectedIds, unavailableIds, onToggle }: SourcePickerProps) {
   const [query, setQuery] = useState('')
   const searchId = useId()
@@ -29,28 +34,45 @@ export function SourcePicker({ sources, selectedIds, unavailableIds, onToggle }:
         <ul className="source-list">
           {shown.map((source) => {
             const unavailable = unavailableIds.includes(source.id)
+            const place = selectedIds.indexOf(source.id)
             return (
               <li key={source.id}>
-                <label className={unavailable ? 'unavailable' : undefined}>
+                <label className={unavailable ? 'spine unavailable' : 'spine'}>
                   <input
+                    className="visually-hidden"
                     type="checkbox"
-                    checked={!unavailable && selectedIds.includes(source.id)}
+                    checked={!unavailable && place !== -1}
                     disabled={unavailable}
                     onChange={() => onToggle(source.id)}
                   />
+                  {/* The index is the selection; a source not in the mix has no number yet. */}
+                  <span className="spine-index" aria-hidden="true">
+                    {place === -1 ? '' : place + 1}
+                  </span>
                   {source.imageUrl ? (
                     <img className="source-cover" src={source.imageUrl} alt="" width={48} height={48} loading="lazy" />
                   ) : (
-                    <span className="source-cover" aria-hidden="true" />
+                    // No sleeve on file: the slot is drawn as an empty cell, not left blank.
+                    <span className="source-cover no-sleeve" aria-hidden="true" />
                   )}
                   <span className="source-text">
                     <span className="source-name">{source.name}</span>
-                    <span className="muted">
+                    <span className="source-meta">
                       {source.owner} · {trackCountLabel(source.trackCount)}
                       {unavailable && ' · Unavailable'}
                     </span>
                   </span>
                 </label>
+                {/* Spotify requires every playlist shown to link back to its page. */}
+                <a
+                  className="spine-link"
+                  href={sourceUrl(source.id)}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Open ${source.name} on Spotify`}
+                >
+                  <OpenIcon />
+                </a>
               </li>
             )
           })}

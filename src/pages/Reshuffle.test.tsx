@@ -52,6 +52,15 @@ async function playMix(user: User) {
 const mixItems = () => within(screen.getByRole('list', { name: /mix/i })).getAllByRole('listitem')
 const mixTrackNames = () => mixItems().map((item) => item.textContent!.split(' — ')[0])
 
+/**
+ * The page lists only the first rows of a mix; Spotify holds all of it. So the
+ * playlist is checked for completeness and the page for what it claims to show.
+ */
+function expectWrittenMatchesPage(written: string[]) {
+  const shown = mixTrackNames()
+  expect(written.slice(0, shown.length)).toEqual(shown)
+}
+
 async function playlistTrackNames(gateway: FakeGateway) {
   const [temporary] = (await gateway.listSources()).filter(isTemporaryPlaylist)
   return (await gateway.getSourceTracks(temporary.id)).map((t) => t.name)
@@ -73,7 +82,7 @@ describe('reshuffling the rest of a playing mix', () => {
     expect(after.slice(0, 5)).toEqual(before.slice(0, 5))
     expect([...after.slice(5)].sort()).toEqual([...before.slice(5)].sort())
     expect(after.slice(5)).not.toEqual(before.slice(5))
-    expect(mixTrackNames()).toEqual(after)
+    expectWrittenMatchesPage(after)
     expect(mixItems()[4]).toHaveAttribute('aria-current', 'true')
     // The same track is still playing, from the same playlist.
     expect(await gateway.getPlaybackState()).toEqual(playing)
@@ -129,7 +138,7 @@ describe('reshuffling the rest of a playing mix', () => {
     expect(await screen.findByText(/your mix isn.t playing on spotify/i)).toBeInTheDocument()
 
     expect(await playlistTrackNames(gateway)).toEqual(before)
-    expect(mixTrackNames()).toEqual(before)
+    expectWrittenMatchesPage(before)
   })
 
   it('says there is nothing left when the last track is playing', async () => {
@@ -158,7 +167,7 @@ describe('reshuffling the rest of a playing mix', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/couldn.t send the mix/i)
     await user.click(screen.getByRole('button', { name: 'Play on Spotify' }))
     await screen.findByText(/playing your mix/i)
-    expect(await playlistTrackNames(gateway)).toEqual(mixTrackNames())
+    expectWrittenMatchesPage(await playlistTrackNames(gateway))
   })
 
   it('isn’t offered before the mix is on Spotify', async () => {
@@ -196,13 +205,13 @@ describe('reshuffling in demo mode', () => {
     await user.click(screen.getByRole('button', { name: /next track/i }))
     await user.click(screen.getByRole('button', { name: /next track/i }))
     const before = mixTrackNames()
+    const total = Number(screen.getByText(/^\d+ tracks$/).textContent!.split(' ')[0])
 
     await user.click(screen.getByRole('button', { name: /reshuffle the rest/i }))
 
     const after = mixTrackNames()
-    expect(await screen.findByText(new RegExp(`reshuffled the ${before.length - 3} tracks`, 'i'))).toBeInTheDocument()
+    expect(await screen.findByText(new RegExp(`reshuffled the ${total - 3} tracks`, 'i'))).toBeInTheDocument()
     expect(after.slice(0, 3)).toEqual(before.slice(0, 3))
-    expect([...after.slice(3)].sort()).toEqual([...before.slice(3)].sort())
     expect(after.slice(3)).not.toEqual(before.slice(3))
     expect(mixItems()[2]).toHaveAttribute('aria-current', 'true')
   })

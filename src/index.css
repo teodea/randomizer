@@ -1,22 +1,128 @@
-:root {
-  --bg: #ffffff;
-  --text: #111111;
-  --muted: #5c5c5c;
-  --link: #1a4fd6;
+/*
+ * Catalogue furniture.
+ *
+ * A record label is a system applied to music it does not own: the covers change
+ * every release, the furniture — catalogue number, matrix code, spine, sleeve
+ * setting — never does. Randomizer is in the same position, so its identity is
+ * the furniture around the listener's playlists and never sits on top of them.
+ * That is also what Spotify's guidelines require: cover art is never cropped,
+ * tinted, overlaid or animated here.
+ */
 
-  color-scheme: light dark;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+@font-face {
+  font-family: 'Archivo';
+  src: url('./assets/fonts/archivo-latin.woff2') format('woff2');
+  font-weight: 400 600;
+  font-stretch: 62% 125%;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Archivo';
+  src: url('./assets/fonts/archivo-latin-ext.woff2') format('woff2');
+  font-weight: 400 600;
+  font-stretch: 62% 125%;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Spline Sans Mono';
+  src: url('./assets/fonts/spline-sans-mono-latin.woff2') format('woff2');
+  font-weight: 400 600;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Spline Sans Mono';
+  src: url('./assets/fonts/spline-sans-mono-latin-ext.woff2') format('woff2');
+  font-weight: 400 600;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  /* Board, stamp, paper: the three roles the whole surface is built from. */
+  --board: #131010;
+  /* The middle tier. Measured, the old steps sat so close to the board that they
+     read as board: 80% of the screen was one flat field with nothing between it
+     and the accent. These are lifted until a surface is a surface. */
+  --sleeve: #282420;
+  --sleeve-lit: #322d27;
+  --stamp: #e2521d;
+  --stamp-deep: #8c3411;
+  --stamp-ink: #21100a;
+  --block: #ede7da;
+  --block-ink: #131010;
+  --block-lit: #fffaf0;
+  --block-muted: #5f584f;
+  --block-off: #6b6459;
+  --block-edge: #9c9488;
+  /* Rules do all the dividing here, so they have to clear WCAG's 3:1 for
+     non-text: at 1.92 the structure the design is built on was invisible. */
+  --rule: #6a6154;
+  --rule-strong: #7d7264;
+  --ink: #f2ede4;
+  --ink-2: #bdb2a4;
+  --ink-3: #9e948a;
+
+  --sans: 'Archivo', system-ui, sans-serif;
+  --mono: 'Spline Sans Mono', ui-monospace, monospace;
+
+  /* One spacing rhythm for the whole surface. */
+  --s1: 0.25rem;
+  --s2: 0.5rem;
+  --s3: 0.75rem;
+  --s4: 1rem;
+  --s5: 1.5rem;
+  --s6: 2rem;
+  --s7: 3rem;
+
+  --measure: 34rem;
+  --tap: 2.75rem;
+
+  /* The scene is a phone, one hand, before the music starts, often in the dark,
+     so the ink board is the default. The printed-stock rendition below is the
+     same catalogue on paper rather than an inversion of this one; main.tsx
+     resolves which one applies before the first paint. */
+  color-scheme: dark;
+  font-family: var(--sans);
   line-height: 1.5;
   -webkit-text-size-adjust: 100%;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #121212;
-    --text: #f2f2f2;
-    --muted: #a8a8a8;
-    --link: #8fb0ff;
-  }
+/*
+ * The catalogue printed on stock. Not the dark world inverted: vermilion has to
+ * deepen to carry text on a light ground, the rules darken to stay structural,
+ * and the block that inverts against the ground becomes the dark one.
+ */
+:root[data-theme='light'] {
+  --board: #e7e6e1;
+  --sleeve: #dbd9d2;
+  --sleeve-lit: #cfccc4;
+  --stamp: #b03f14;
+  --stamp-deep: #5a1f09;
+  --stamp-lit: #c8481a;
+  --stamp-ink: #ffffff;
+  --block: #1b1812;
+  --block-ink: #f0ece3;
+  --block-lit: #2a251d;
+  --block-muted: #a9a294;
+  --block-off: #8a8378;
+  --block-edge: #4a443c;
+  --rule: #7f7a6e;
+  --rule-strong: #635e54;
+  --ink: #17150f;
+  --ink-2: #4f4b42;
+  --ink-3: #5a554a;
+
+  color-scheme: light;
 }
 
 *,
@@ -28,124 +134,541 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--board);
+  color: var(--ink);
+  font-size: 0.9375rem;
+}
+
+/* The parts we did not draw still belong to the world. */
+::selection {
+  background: var(--stamp);
+  color: var(--stamp-ink);
+}
+
+:root {
+  scrollbar-color: var(--rule-strong) var(--board);
+}
+
+:where(input, textarea) {
+  caret-color: var(--stamp);
+}
+
+:focus-visible {
+  outline: 2px solid var(--stamp);
+  outline-offset: 2px;
 }
 
 a {
-  color: var(--link);
+  color: var(--ink);
+  text-decoration-color: var(--stamp);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.25em;
+}
+
+a:hover {
+  text-decoration-color: var(--ink);
+}
+
+/* Catalogue setting: codes, counts, shares and durations are measured, not decorative. */
+.mono,
+.code {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .page {
-  max-width: 40rem;
+  max-width: var(--measure);
   margin: 0 auto;
-  padding: 3rem 1rem;
+  padding: var(--s5) var(--s4) var(--s7);
 }
 
-.page h1 {
-  margin: 0 0 0.5rem;
-  font-size: clamp(2rem, 8vw, 3rem);
-  line-height: 1.1;
+h1 {
+  margin: 0;
+  font-size: clamp(2rem, 9vw, 2.75rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  text-wrap: balance;
 }
 
-.muted {
-  color: var(--muted);
+h2 {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+/* Every section is a ruled block of the catalogue, headed by its marker. */
+.block {
+  margin-top: var(--s6);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--rule);
+}
+
+.block > h2 {
+  margin-bottom: var(--s3);
+}
+
+p {
+  margin: 0;
+}
+
+p + p {
+  margin-top: var(--s3);
 }
 
 .lead {
-  font-size: 1.125rem;
+  font-size: 1.0625rem;
+  color: var(--ink);
+  max-width: 30rem;
 }
 
-.steps {
-  padding-left: 1.25rem;
+.muted {
+  color: var(--ink-2);
 }
 
-.steps li + li {
-  margin-top: 0.5rem;
+.hint {
+  color: var(--ink-3);
+  font-size: 0.8125rem;
 }
 
-.cta {
-  margin-top: 2rem;
+/* The top rail: who this is, which session, and Spotify's required credit. */
+.rail {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding-bottom: var(--s2);
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--s5);
 }
 
-.cta h2 {
-  margin: 0 0 0.5rem;
-  font-size: 1.25rem;
+.rail-mark {
+  font-family: var(--sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-stretch: 70%;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.rail-code {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.rail-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  margin-left: auto;
+}
+
+/* Controls. Zero radius: everything here is printed, stamped or struck. */
+.button,
+button,
+.link-button {
+  font: inherit;
 }
 
 .button {
-  display: inline-block;
-  min-height: 2.75rem;
-  padding: 0.625rem 1.25rem;
-  border: 1px solid var(--text);
-  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding: 0 var(--s4);
+  border: 1px solid var(--rule-strong);
+  border-radius: 0;
   background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-weight: 600;
+  color: var(--ink);
+  font-weight: 500;
+  letter-spacing: 0.02em;
   text-decoration: none;
   cursor: pointer;
+  transition: background-color 90ms linear, border-color 90ms linear;
 }
 
+.button:hover:not(:disabled) {
+  background: var(--sleeve-lit);
+  border-color: var(--ink-3);
+}
+
+/* One paper block per screen: the action the surface exists for. */
 .button-primary {
-  background: var(--text);
-  color: var(--bg);
+  background: var(--block);
+  border-color: var(--block);
+  color: var(--block-ink);
+  font-weight: 600;
+}
+
+.button-primary:hover:not(:disabled) {
+  background: var(--block-lit);
+  border-color: var(--block-lit);
+}
+
+.button-primary:focus-visible {
+  outline-color: var(--block);
+}
+
+.button-stamp {
+  background: var(--stamp);
+  border-color: var(--stamp);
+  color: var(--stamp-ink);
+  font-weight: 600;
+}
+
+.button-stamp:hover:not(:disabled) {
+  background: var(--stamp-lit);
+  border-color: var(--stamp-lit);
 }
 
 .button:disabled {
-  border-color: var(--muted);
-  color: var(--muted);
+  border-color: var(--rule);
+  background: transparent;
+  color: var(--ink-3);
   cursor: not-allowed;
-}
-
-.legal h2 {
-  margin: 2rem 0 0.5rem;
-  font-size: 1.25rem;
-}
-
-.legal li + li {
-  margin-top: 0.375rem;
-}
-
-.site-footer {
-  max-width: 40rem;
-  margin: 0 auto;
-  padding: 1.5rem 1rem 3rem;
-  border-top: 1px solid color-mix(in srgb, var(--muted) 40%, transparent);
-  color: var(--muted);
-  font-size: 0.875rem;
-}
-
-.site-footer nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1.25rem;
-}
-
-.site-footer a[aria-current='page'] {
-  color: inherit;
-  text-decoration: none;
-}
-
-.notice {
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--muted);
-  border-left-width: 4px;
-  border-radius: 0.5rem;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
 }
 
 .link-button {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--link);
-  font: inherit;
+  color: var(--ink);
   text-decoration: underline;
+  text-decoration-color: var(--stamp);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.25em;
   cursor: pointer;
+}
+
+.link-button:disabled {
+  color: var(--ink-3);
+  text-decoration-color: var(--rule);
+  cursor: not-allowed;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+/*
+ * Alerts are struck blocks, not coloured ones: the vermilion is spoken for by
+ * selection and proportion, and it sits too close to a warning orange to mean
+ * two things at once.
+ */
+.notice {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--block);
+  background: var(--sleeve);
+  color: var(--ink);
+}
+
+.notice::before {
+  content: attr(data-label);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  color: var(--block);
+}
+
+/* Inputs are set into the board rather than raised off it. */
+input[type='search'],
+input[type='number'],
+input[type='text'] {
+  min-height: var(--tap);
+  padding: 0 var(--s3);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  background: var(--sleeve);
+  color: var(--ink);
+  font: inherit;
+}
+
+input[type='number'] {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+input[type='search']:hover,
+input[type='number']:hover {
+  border-color: var(--rule-strong);
+}
+
+input::placeholder {
+  color: var(--ink-3);
+}
+
+/* The checkbox and radio are stamped cells: a filled one is struck in vermilion. */
+input[type='checkbox'],
+input[type='radio'] {
+  appearance: none;
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  border: 1px solid var(--rule-strong);
+  border-radius: 0;
+  background: var(--board);
+  cursor: pointer;
+  transition: background-color 90ms linear, border-color 90ms linear;
+}
+
+input[type='radio'] {
+  border-radius: 50%;
+}
+
+input[type='checkbox']:checked,
+input[type='radio']:checked {
+  border-color: var(--stamp);
+  background: var(--stamp);
+}
+
+input[type='checkbox']:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2321100a' stroke-width='2.25' stroke-linecap='square'%3E%3Cpath d='M3.5 8.5 6.5 11.5 12.5 4.5'/%3E%3C/svg%3E");
+  background-size: 100%;
+}
+
+input[type='radio']:checked {
+  box-shadow: inset 0 0 0 3px var(--board);
+}
+
+input[type='checkbox']:disabled,
+input[type='radio']:disabled {
+  border-color: var(--rule);
+  background: var(--sleeve);
+  cursor: not-allowed;
+}
+
+/* The share slider is the rail's own control: a struck track with a stamped grip. */
+input[type='range'] {
+  appearance: none;
+  width: 100%;
+  height: var(--tap);
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--rule);
+}
+
+input[type='range']::-moz-range-track {
+  height: 4px;
+  background: var(--rule);
+}
+
+input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 0.75rem;
+  height: 1.5rem;
+  margin-top: -10px;
+  border: 0;
+  border-radius: 0;
+  background: var(--stamp);
+}
+
+input[type='range']::-moz-range-thumb {
+  width: 0.75rem;
+  height: 1.5rem;
+  border: 0;
+  border-radius: 0;
+  background: var(--stamp);
+}
+
+progress {
+  width: 100%;
+  height: 0.5rem;
+  border: 0;
+  border-radius: 0;
+  background: var(--rule);
+  accent-color: var(--stamp);
+}
+
+progress::-webkit-progress-bar {
+  background: var(--rule);
+}
+
+progress::-webkit-progress-value {
+  background: var(--stamp);
+}
+
+progress::-moz-progress-bar {
+  background: var(--stamp);
+}
+
+/* Landing */
+.steps {
+  margin: var(--s5) 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.steps li {
+  display: grid;
+  grid-template-columns: 1.75rem 1fr;
+  gap: var(--s3);
+  counter-increment: step;
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-2);
+}
+
+.steps li::before {
+  content: counter(step, decimal-leading-zero);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--stamp);
+  padding-top: 0.2em;
+}
+
+.steps strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.legal h2 {
+  margin: var(--s6) 0 var(--s3);
+}
+
+.legal li + li {
+  margin-top: var(--s2);
+}
+
+.legal p + h2 {
+  margin-top: var(--s6);
+}
+
+/* The run-out groove: credits, and Spotify's required independence notice. */
+.site-footer {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: var(--s5) var(--s4) var(--s6);
+  border-top: 1px solid var(--rule);
+  color: var(--ink-3);
+  font-size: 0.8125rem;
+}
+
+.site-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  margin-bottom: var(--s3);
+}
+
+.site-footer a {
+  color: var(--ink-2);
+}
+
+.site-footer a[aria-current='page'] {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+/*
+ * Spotify's mark: the icon never below 21px, the full logo never below 70px wide,
+ * each with clear space of half the icon's height on every side.
+ */
+.spotify-credit {
+  display: inline-flex;
+  align-items: center;
+  padding: 11px;
+  margin: -11px;
+  text-decoration: none;
+}
+
+.spotify-credit img {
+  display: block;
+  flex: none;
+  width: auto;
+  height: 21px;
+}
+
+/* The mark cannot be recoloured, so the right cut is shown and the other is not. */
+.spotify-credit .on-stock {
+  display: none;
+}
+
+:root[data-theme='light'] .spotify-credit .on-board {
+  display: none;
+}
+
+:root[data-theme='light'] .spotify-credit .on-stock {
+  display: block;
+}
+
+.site-footer .spotify-credit img {
+  height: 24px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+}
+
+/* The rendition switch, set once and then forgotten. */
+.theme-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  margin: 0 0 var(--s3);
+  padding: 0;
+  border: 0;
+}
+
+.theme-control legend {
+  padding: 0;
+  float: left;
+  width: 100%;
+  margin-bottom: var(--s2);
+  color: var(--ink-3);
+}
+
+.theme-control label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 2.25rem;
+  cursor: pointer;
+}
+
+.theme-control input[type='radio'] {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.theme-control input[type='radio']:checked {
+  box-shadow: inset 0 0 0 2px var(--board);
 }

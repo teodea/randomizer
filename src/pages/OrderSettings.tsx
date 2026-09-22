@@ -15,7 +15,7 @@ export function OrderSettings({ form, onChange }: OrderSettingsProps) {
   const set = <K extends keyof OrderForm>(key: K, value: OrderForm[K]) => onChange({ ...form, [key]: value })
 
   return (
-    <section aria-labelledby="order-heading">
+    <section className="block" aria-labelledby="order-heading">
       <h2 id="order-heading">Order</h2>
       <fieldset className="mode-options">
         <legend>How the sources follow each other</legend>
@@ -46,7 +46,7 @@ export function OrderSettings({ form, onChange }: OrderSettingsProps) {
               aria-label="Block size (tracks)"
               onChange={(event) => set('blockSize', event.target.value)}
             />
-            tracks
+            <span className="unit">tracks</span>
           </label>
         )}
         <label className="check">

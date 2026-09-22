@@ -1,3 +1,8 @@
+import gymRotationCover from '../assets/demo/gym-rotation.svg'
+import indieFindsCover from '../assets/demo/indie-finds.svg'
+import lateNightDriveCover from '../assets/demo/late-night-drive.svg'
+import rainyDayJazzCover from '../assets/demo/rainy-day-jazz.svg'
+import sundayCoffeeCover from '../assets/demo/sunday-coffee.svg'
 import { createFakeGateway, type FakeSource } from './fakeGateway'
 import type { Track } from './types'
 
@@ -7,12 +12,22 @@ import type { Track } from './types'
 
 type SampleTrack = [name: string, artist: string, seconds: number, explicit?: boolean]
 
+// Sleeves drawn for these invented playlists, so the demo shows the rack the way a
+// real library does. Nothing here is Spotify artwork.
+const COVERS: Record<string, string> = {
+  'late-night-drive': lateNightDriveCover,
+  'sunday-coffee': sundayCoffeeCover,
+  'gym-rotation': gymRotationCover,
+  'indie-finds': indieFindsCover,
+  'rainy-day-jazz': rainyDayJazzCover,
+}
+
 function playlist(id: string, name: string, tracks: SampleTrack[]): FakeSource {
   return {
     id,
     name,
     owner: 'Demo',
-    imageUrl: null,
+    imageUrl: COVERS[id] ?? null,
     tracks: tracks.map(
       ([trackName, artist, seconds, explicit = false], index): Track => ({
         id: `${id}-${index + 1}`,

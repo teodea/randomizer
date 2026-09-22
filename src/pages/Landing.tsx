@@ -51,7 +51,11 @@ export function Landing() {
   return (
     <main className="page">
       {notice && NOTICES[notice] && (
-        <p className="notice" role={NOTICES[notice].urgent ? 'alert' : 'status'}>
+        <p
+          className="notice"
+          data-label={NOTICES[notice].urgent ? 'Notice' : 'Signed out'}
+          role={NOTICES[notice].urgent ? 'alert' : 'status'}
+        >
           {NOTICES[notice].text}
         </p>
       )}
@@ -60,30 +64,36 @@ export function Landing() {
 
       <ol className="steps">
         <li>
-          <strong>Pick your sources.</strong> Any mix of playlists you made, playlists you follow, and
-          your Liked Songs.
+          <span>
+            <strong>Pick your sources.</strong> Any mix of playlists you made, playlists you follow, and
+            your Liked Songs.
+          </span>
         </li>
         <li>
-          <strong>Choose how to mix.</strong> Keep a huge playlist from drowning out a small one, drop
-          songs that appear twice, and keep the same artist from playing back to back.
+          <span>
+            <strong>Choose how to mix.</strong> Keep a huge playlist from drowning out a small one, drop
+            songs that appear twice, and keep the same artist from playing back to back.
+          </span>
         </li>
         <li>
-          <strong>Press play.</strong> Randomizer puts the mix in one private, temporary playlist in
-          your account and starts it. When you&rsquo;re done, it removes the playlist.
+          <span>
+            <strong>Press play.</strong> Randomizer puts the mix in one private, temporary playlist in
+            your account and starts it. When you&rsquo;re done, it removes the playlist.
+          </span>
         </li>
       </ol>
 
-      <section className="cta" aria-labelledby="demo-heading">
+      <section className="block" aria-labelledby="demo-heading">
         <h2 id="demo-heading">Try it</h2>
         <p>
-          <Link className="button button-primary" to="/demo">
+          <Link className="button" to="/demo">
             Try the demo
           </Link>
         </p>
-        <p className="muted">Sample playlists, no account needed.</p>
+        <p className="hint">Sample playlists, no account needed.</p>
       </section>
 
-      <section className="cta" aria-labelledby="login-heading">
+      <section className="block" aria-labelledby="login-heading">
         <h2 id="login-heading">Log in</h2>
         {loggedIn ? (
           <p className="actions">
@@ -98,7 +108,7 @@ export function Landing() {
           <>
             <p>
               <button
-                className="button"
+                className="button button-primary"
                 type="button"
                 disabled={!auth || redirecting}
                 aria-describedby={auth ? undefined : 'login-status'}
@@ -108,18 +118,22 @@ export function Landing() {
               </button>
             </p>
             {!auth && (
-              <p className="muted" id="login-status">
+              <p className="hint" id="login-status">
                 Login isn&rsquo;t configured for this build.
               </p>
             )}
-            {loginFailed && <p role="alert">Couldn&rsquo;t start the login. Please try again.</p>}
+            {loginFailed && (
+              <p className="notice" data-label="Login" role="alert">
+                Couldn&rsquo;t start the login. Please try again.
+              </p>
+            )}
           </>
         )}
-        <p>
+        <p className="hint">
           Login is limited to invited users. While an app like this is in development, Spotify lets
           at most five accounts use it. Not invited? The demo shows how mixing works.
         </p>
-        <p>
+        <p className="hint">
           Before logging in, read the <Link to="/privacy">Privacy policy</Link> and the{' '}
           <Link to="/terms">Terms</Link>. In short: nothing is stored on any server.
         </p>

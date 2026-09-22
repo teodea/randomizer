@@ -1,13 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Link } from 'react-router'
-import { TEMPORARY_PLAYLIST, splitLibrary } from '../app/temporaryPlaylist'
+import { TEMPORARY_PLAYLIST, playlistUrl, splitLibrary } from '../app/temporaryPlaylist'
+import { StrikeIcon } from '../components/icons'
 import { SourcePicker } from '../components/SourcePicker'
-import { trackCountLabel } from '../format'
+import { SpotifyCredit } from '../components/SpotifyCredit'
+import { durationAttr, durationLabel, trackCountLabel, trackCountParts, trackTimeLabel } from '../format'
 import { buildMix, reshuffleRemaining, type MixItem, type MixOptions, type Weighting } from '../mixer/engine'
 import { createRng, randomSeed } from '../mixer/random'
-import { equalShares, setShare, type Shares } from '../mixer/shares'
+import { equalShares, setShare, sharesByWeight, type Shares } from '../mixer/shares'
 import { SourceUnavailableError } from '../spotify/errors'
 import type { SpotifyGateway } from '../spotify/gateway'
+import { trackUrl } from '../spotify/links'
 import type { Source } from '../spotify/types'
 import { defaultOrderForm, toOrder } from './orderForm'
 import { OrderSettings } from './OrderSettings'
@@ -15,11 +18,18 @@ import { defaultPoolForm, toPoolOptions } from './poolForm'
 import { PoolSettings } from './PoolSettings'
 import { ReshuffleControls } from './ReshuffleControls'
 import { SendMix } from './SendMix'
-import { useSendMix, type CleanupState } from './useSendMix'
+import { useSendMix, type CleanupState, type SendState } from './useSendMix'
 import './Mixer.css'
 
 /** A mix needs at least this many sources. */
 const MIN_SOURCES = 2
+
+/**
+ * How many tracks the mix lists on screen. The list is a receipt, not the
+ * product: the mix itself is never truncated, and the whole of it is one tap
+ * away in Spotify, which draws long lists better than this page can.
+ */
+const PREVIEW_ROWS = 6
 
 type WeightingMode = Weighting['mode']
 
@@ -59,6 +69,8 @@ export function Mixer({
   const [mix, setMix] = useState<MixItem[] | null>(null)
   // The options the mix was built with, which a reshuffle keeps.
   const [mixOptions, setMixOptions] = useState<MixOptions>({})
+  // The seed the current mix came from, shown on the rail as its catalogue number.
+  const [mixSeed, setMixSeed] = useState<number | null>(null)
   // Where playback is in the mix, when known: the demo's simulated player, or the last reshuffle.
   const [playingIndex, setPlayingIndex] = useState<number | null>(null)
   const [reshuffling, setReshuffling] = useState(false)
@@ -70,6 +82,7 @@ export function Mixer({
   const [loggingOut, setLoggingOut] = useState(false)
   // Bumped whenever the selection changes, so a mix built for an older selection is discarded.
   const selectionVersion = useRef(0)
+  const countRef = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
     let active = true
@@ -93,12 +106,24 @@ export function Mixer({
     .filter((source) => source !== undefined)
   const pool = toPoolOptions(poolForm)
   const order = toOrder(orderForm)
+  const blocked = selected.length < MIN_SOURCES || !pool || !order
+  // What the chosen weighting actually works out to, so the rail shows the blend
+  // every mode produces and not only the one the user typed in by hand.
+  const railShares =
+    weightingMode === 'custom'
+      ? shares
+      : sharesByWeight(
+          selected.map((source) => ({
+            id: source.id,
+            weight: weightingMode === 'uniform' ? source.trackCount : 1,
+          })),
+        )
 
   function changeSelection(next: string[]) {
     selectionVersion.current++
     setSelectedIds(next)
     setShares(equalShares(next))
-    showMix(null, {})
+    showMix(null, {}, null)
     sendMix.reset()
     setGenerateFailed(false)
     setGenerating(false)
@@ -106,9 +131,10 @@ export function Mixer({
   }
 
   /** Shows a new mix, from the start: the demo's pretend player starts on its first track. */
-  function showMix(next: MixItem[] | null, options: MixOptions) {
+  function showMix(next: MixItem[] | null, options: MixOptions, seed: number | null) {
     setMix(next)
     setMixOptions(options)
+    setMixSeed(seed)
     setPlayingIndex(canSend ? null : 0)
     setReshuffleNotice(null)
     setReshuffling(false)
@@ -160,7 +186,8 @@ export function Mixer({
         setLeftOut(selected.filter((source) => unavailable.includes(source.id)))
       }
       const options = { pool, weighting, order, spreadArtists: orderForm.spreadArtists }
-      showMix(mixSources.length > 0 ? buildMix(mixSources, options, createRng(newSeed())) : null, options)
+      const seed = newSeed()
+      showMix(mixSources.length > 0 ? buildMix(mixSources, options, createRng(seed)) : null, options, seed)
     } catch {
       if (version === selectionVersion.current) setGenerateFailed(true)
     } finally {
@@ -220,42 +247,108 @@ export function Mixer({
     }
   }
 
+  const sendable = canSend && mix !== null && mix.length > 0
+  const runningMs = mix ? mix.reduce((total, { track }) => total + track.durationMs, 0) : 0
+  useCountUp(mix ? mix.length : null, countRef)
+
+  /*
+   * The mix sits directly under the share rail, above the settings that shape it:
+   * the thing being made and the controls that make it are one surface, and a new
+   * mix is never a change below the fold.
+   */
+  const mixSection = mix && (
+    <section className="block" aria-labelledby="mix-heading">
+      <h2 id="mix-heading">Your mix</h2>
+      {mix.length === 0 ? (
+        <p className="muted">No tracks match these settings.</p>
+      ) : canSend ? (
+        <SendMix state={sendMix.state} busy={sendMix.busy || reshuffling} onRetryPlayback={sendMix.retryPlayback} />
+      ) : (
+        <p className="hint">Demo mode: log in to play a mix on Spotify.</p>
+      )}
+      {mix.length > 0 && (!canSend || sendMix.state.step === 'sent' || reshuffling) && (
+        <ReshuffleControls
+          simulatedPosition={canSend ? null : (playingIndex ?? 0)}
+          mixLength={mix.length}
+          disabled={reshuffling || sendMix.busy}
+          notice={reshuffleNotice}
+          onNextTrack={() => {
+            setPlayingIndex((index) => Math.min((index ?? 0) + 1, mix.length - 1))
+            setReshuffleNotice(null)
+          }}
+          onReshuffle={reshuffle}
+        />
+      )}
+      <ol className="mix-tracks" aria-label="Mix">
+        {mix.slice(0, PREVIEW_ROWS).map(({ track }, index) => (
+          <li key={`${index}-${track.id}`} aria-current={index === playingIndex ? 'true' : undefined}>
+            {/* Spotify requires every track shown to link back to its own page. */}
+            <a href={trackUrl(track.id)} target="_blank" rel="noreferrer">
+              <span className="track-name">{track.name}</span>
+              <span className="visually-hidden"> — </span>
+              <span className="track-artists">{track.artists.join(', ')}</span>
+              <time className="track-time" dateTime={durationAttr(track.durationMs)}>
+                {trackTimeLabel(track.durationMs)}
+              </time>
+            </a>
+          </li>
+        ))}
+      </ol>
+      {mix.length > PREVIEW_ROWS && <p className="mix-rest">{restOfMix(mix.length, sendMix.state)}</p>}
+    </section>
+  )
+
   return (
     <main className="page">
-      <p className="mixer-nav">
-        <Link to="/">Home</Link>
-        {canSend && sendMix.playlistId && !sendMix.isLeftover && (
-          <button
-            className="link-button"
-            type="button"
-            title={`Remove “${TEMPORARY_PLAYLIST.name}” from your Spotify library`}
-            disabled={sendMix.busy || loggingOut}
-            onClick={() => sendMix.cleanUp()}
-          >
-            Clean up
-          </button>
-        )}
-        {onLogout && (
-          <button className="link-button" type="button" disabled={loggingOut} onClick={logOut}>
-            {loggingOut ? 'Logging out…' : 'Log out'}
-          </button>
-        )}
-      </p>
+      <div className="rail">
+        <Link className="rail-mark" to="/">
+          Randomizer
+        </Link>
+        {/* The catalogue number is this mix's seed: no mix yet, no entry yet. */}
+        <span className="rail-code" aria-hidden="true">
+          {mixSeed === null ? '——————' : catalogueNumber(mixSeed)}
+        </span>
+        <span className="rail-actions">
+          {canSend && sendMix.playlistId && !sendMix.isLeftover && (
+            <button
+              className="link-button"
+              type="button"
+              title={`Remove “${TEMPORARY_PLAYLIST.name}” from your Spotify library`}
+              disabled={sendMix.busy || loggingOut}
+              onClick={() => sendMix.cleanUp()}
+            >
+              Clean up
+            </button>
+          )}
+          {onLogout && (
+            <button className="link-button" type="button" disabled={loggingOut} onClick={logOut}>
+              {loggingOut ? 'Logging out…' : 'Log out'}
+            </button>
+          )}
+          <SpotifyCredit label="Your playlists" />
+        </span>
+      </div>
+
       <h1>Build a mix</h1>
       <p className="muted">{subtitle}</p>
 
       {canSend && sendMix.isLeftover && (
-        <section className="leftover" aria-labelledby="leftover-heading">
+        <section className="block" aria-labelledby="leftover-heading">
           <h2 id="leftover-heading">An earlier mix is still in your library</h2>
           <p>
             &ldquo;{TEMPORARY_PLAYLIST.name}&rdquo; is left from an earlier visit. Remove it, or keep it and your
             next mix will replace it.
           </p>
           <p className="actions">
-            <button type="button" disabled={sendMix.busy || loggingOut} onClick={() => sendMix.cleanUp()}>
+            <button
+              className="button"
+              type="button"
+              disabled={sendMix.busy || loggingOut}
+              onClick={() => sendMix.cleanUp()}
+            >
               Remove it
             </button>
-            <button type="button" disabled={sendMix.busy || loggingOut} onClick={sendMix.keepLeftover}>
+            <button className="button" type="button" disabled={sendMix.busy || loggingOut} onClick={sendMix.keepLeftover}>
               Keep it
             </button>
           </p>
@@ -264,17 +357,21 @@ export function Mixer({
       {canSend &&
         !loggingOut &&
         (sendMix.cleanup === 'failed' ? (
-          <p role="alert">
+          <p className="notice" data-label="Cleanup" role="alert">
             Couldn&rsquo;t remove &ldquo;{TEMPORARY_PLAYLIST.name}&rdquo; from your library. Try again.
           </p>
         ) : (
-          <p role="status">{cleanupMessage(sendMix.cleanup)}</p>
+          <p role="status" className={sendMix.cleanup === 'idle' ? undefined : 'hint'}>
+            {cleanupMessage(sendMix.cleanup)}
+          </p>
         ))}
 
-      <section aria-labelledby="sources-heading">
+      <section className="block" aria-labelledby="sources-heading">
         <h2 id="sources-heading">Sources</h2>
         {loadFailed ? (
-          <p role="alert">Couldn&rsquo;t load the playlists. Reload the page to try again.</p>
+          <p className="notice" data-label="Sources" role="alert">
+            Couldn&rsquo;t load the playlists. Reload the page to try again.
+          </p>
         ) : sources === null ? (
           <p className="muted">Loading playlists…</p>
         ) : (
@@ -287,21 +384,54 @@ export function Mixer({
         )}
       </section>
 
-      <section aria-labelledby="selection-heading">
+      <section className="block" aria-labelledby="selection-heading">
         <h2 id="selection-heading">Selected</h2>
-        {selected.length === 0 ? (
-          <p className="muted">Nothing selected yet.</p>
-        ) : (
-          <ul className="selection">
-            {selected.map((source) => (
-              <li key={source.id}>
-                <span>{source.name}</span>
-                <button
-                  type="button"
-                  aria-label={`Remove ${source.name}`}
-                  onClick={() => deselect(source.id)}
+        {/*
+         * The share rail: one field reading 100% across. Uniform, balanced and custom
+         * are the same mechanism with different weights, so they all read here. An
+         * empty selection keeps the field and says what it needs, rather than
+         * replacing the object with a sentence.
+         */}
+        <div
+          className={selected.length === 0 ? 'share-rail waiting' : 'share-rail'}
+          role="img"
+          aria-label={
+            selected.length === 0
+              ? `No sources selected. Pick at least ${MIN_SOURCES} to build a mix.`
+              : railLabel(selected, railShares)
+          }
+        >
+          {selected.length === 0 ? (
+            <span className="share-waiting">Pick at least {MIN_SOURCES}</span>
+          ) : (
+            selected.map((source, index) => {
+              const share = railShares[source.id] ?? 0
+              return (
+                <span
+                  key={source.id}
+                  className={share === 0 ? 'share-seg empty' : 'share-seg'}
+                  style={share === 0 ? undefined : { flexGrow: share }}
                 >
-                  ×
+                  <b className="seg-index">{index + 1}</b>
+                  <b className="seg-share">{share}%</b>
+                </span>
+              )
+            })
+          )}
+        </div>
+        {selected.length > 0 && (
+          <ul className="selection">
+            {selected.map((source, index) => (
+              <li key={source.id}>
+                <span className="chip-index" aria-hidden="true">
+                  {index + 1}
+                </span>
+                <span>{source.name}</span>
+                <span className="chip-share" aria-hidden="true">
+                  {railShares[source.id] ?? 0}%
+                </span>
+                <button type="button" aria-label={`Remove ${source.name}`} onClick={() => deselect(source.id)}>
+                  <StrikeIcon />
                 </button>
               </li>
             ))}
@@ -309,9 +439,11 @@ export function Mixer({
         )}
       </section>
 
+      {mixSection}
+
       <PoolSettings form={poolForm} onChange={setPoolForm} />
 
-      <section aria-labelledby="weighting-heading">
+      <section className="block" aria-labelledby="weighting-heading">
         <h2 id="weighting-heading">Weighting</h2>
         <fieldset className="mode-options">
           <legend>How often each source plays</legend>
@@ -355,7 +487,7 @@ export function Mixer({
                   )
                 })}
               </ul>
-              <p className="muted">
+              <p className="hint">
                 Shares always add up to 100%. When a source runs out, the rest keep their proportions.
               </p>
             </>
@@ -364,75 +496,146 @@ export function Mixer({
 
       <OrderSettings form={orderForm} onChange={setOrderForm} />
 
-      <div>
-        <p>
+      {generateFailed && (
+        <p className="notice" data-label="Tracks" role="alert">
+          Couldn&rsquo;t read the tracks. Try again.
+        </p>
+      )}
+      <p role="status" className="hint">
+        {leftOut.length > 0 && unavailableNotice(leftOut)}
+      </p>
+
+      {/*
+       * The ticket. It stays with the listener, so pressing Generate produces
+       * something visible and reachable instead of a change below the fold.
+       */}
+      <div className="ticket">
+        {/*
+         * The count is the entry: the numeral at catalogue scale, its unit and the
+         * running time as the label beside it. Before there is a mix, the same slot
+         * says what it still needs rather than standing empty.
+         */}
+        {mix ? (
+          <div className="ticket-entry">
+            {/*
+             * Split for the eye, whole for the ear: the numeral carries catalogue
+             * scale while a screen reader still hears one phrase.
+             */}
+            <p className="ticket-count">
+              <span className="visually-hidden">{trackCountLabel(mix.length)}</span>
+              <span className="ticket-number" aria-hidden="true" ref={countRef}>
+                {mix.length}
+              </span>
+              <span className="ticket-unit" aria-hidden="true">
+                {trackCountParts(mix.length).unit}
+              </span>
+            </p>
+            <time className="ticket-time" dateTime={durationAttr(runningMs)}>
+              {durationLabel(runningMs)}
+            </time>
+          </div>
+        ) : (
+          <p className="ticket-status">{blockedReason(selected.length, pool, order)}</p>
+        )}
+        <p className="actions">
+          {mix && (
+            <a className="ticket-jump" href="#mix-settings">
+              Settings
+            </a>
+          )}
           <button
+            className={sendable ? 'button' : 'button button-stamp'}
             type="button"
-            disabled={selected.length < MIN_SOURCES || !pool || !order || generating || sendMix.busy || reshuffling}
+            disabled={blocked || generating || sendMix.busy || reshuffling}
             onClick={generate}
           >
             {mix ? 'Regenerate' : 'Generate mix'}
           </button>
-        </p>
-        {selected.length < MIN_SOURCES && <p className="muted">Select at least {MIN_SOURCES} sources.</p>}
-        {!pool && (
-          <p className="muted">
-            Check the track settings: the shortest length can&rsquo;t exceed the longest, and the number of
-            tracks must be a whole number.
-          </p>
-        )}
-        {!order && <p className="muted">Check the block size: it must be a whole number of tracks.</p>}
-        {generateFailed && <p role="alert">Couldn&rsquo;t read the tracks. Try again.</p>}
-        <p role="status">{leftOut.length > 0 && unavailableNotice(leftOut)}</p>
-      </div>
-
-      {mix && (
-        <section aria-labelledby="mix-heading">
-          <h2 id="mix-heading">Your mix</h2>
-          <p>{mix.length === 0 ? 'No tracks match these settings.' : trackCountLabel(mix.length)}</p>
-          {mix.length > 0 &&
-            (canSend ? (
-              <SendMix
-                state={sendMix.state}
-                busy={sendMix.busy || reshuffling}
-                onSend={() => {
-                  setPlayingIndex(null)
-                  setReshuffleNotice(null)
-                  sendMix.send(trackIds(mix))
-                }}
-                onRetryPlayback={sendMix.retryPlayback}
-              />
-            ) : (
-              <p className="muted">Demo mode: log in to play a mix on Spotify.</p>
-            ))}
-          {mix.length > 0 && (!canSend || sendMix.state.step === 'sent' || reshuffling) && (
-            <ReshuffleControls
-              simulatedPosition={canSend ? null : (playingIndex ?? 0)}
-              mixLength={mix.length}
-              disabled={reshuffling || sendMix.busy}
-              notice={reshuffleNotice}
-              onNextTrack={() => {
-                setPlayingIndex((index) => Math.min((index ?? 0) + 1, mix.length - 1))
+          {sendable && (
+            <button
+              className="button button-stamp"
+              type="button"
+              disabled={sendMix.busy || reshuffling}
+              onClick={() => {
+                setPlayingIndex(null)
                 setReshuffleNotice(null)
+                sendMix.send(trackIds(mix))
               }}
-              onReshuffle={reshuffle}
-            />
+            >
+              Play on Spotify
+            </button>
           )}
-          <ol className="mix-tracks" aria-label="Mix">
-            {mix.map(({ track }, index) => (
-              <li key={`${index}-${track.id}`} aria-current={index === playingIndex ? 'true' : undefined}>
-                {track.name} — {track.artists.join(', ')}
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
+        </p>
+      </div>
     </main>
   )
 }
 
 function trackIds(items: MixItem[]): string[] {
   return items.map(({ track }) => track.id)
+}
+
+/**
+ * The ticket's count runs up to a new total instead of snapping, so a new mix is
+ * something the listener sees happen. React renders the real number; this only
+ * paints the frames in between, and reduced motion gets none of them.
+ */
+function useCountUp(target: number | null, node: RefObject<HTMLElement | null>) {
+  const from = useRef<number | null>(null)
+
+  useEffect(() => {
+    const element = node.current
+    const start = from.current
+    from.current = target
+    if (element === null || target === null) return
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    if (reduced || start === null || start === target || typeof requestAnimationFrame !== 'function') return
+
+    const began = performance.now()
+    let frame = requestAnimationFrame(function step(now) {
+      const progress = Math.min(1, (now - began) / 420)
+      const eased = 1 - (1 - progress) ** 3
+      element.textContent = String(Math.round(start + (target - start) * eased))
+      if (progress < 1) frame = requestAnimationFrame(step)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [target, node])
+}
+
+/** This mix's entry in the catalogue, from the seed that produced it. */
+function catalogueNumber(seed: number): string {
+  return `RND-${Math.abs(seed).toString(36).toUpperCase().padStart(6, '0').slice(-6)}`
+}
+
+/** The share rail's picture, in words, for anyone who can't see the field. */
+function railLabel(sources: Source[], shares: Shares): string {
+  const parts = sources.map((source) => `${source.name} ${shares[source.id] ?? 0}%`)
+  return `Share of the mix: ${parts.join(', ')}`
+}
+
+/** What the ticket says while Generate can't run: the count's slot, not an empty one. */
+function blockedReason(
+  selectedCount: number,
+  pool: ReturnType<typeof toPoolOptions>,
+  order: ReturnType<typeof toOrder>,
+): string {
+  if (selectedCount < MIN_SOURCES) return `${MIN_SOURCES - selectedCount} more to pick`
+  if (!pool) return 'Check the track settings'
+  if (!order) return 'Check the block size'
+  return 'Ready'
+}
+
+/** The rest of the mix: on Spotify once it is there, otherwise just its size. */
+function restOfMix(total: number, state: SendState) {
+  const rest = total - PREVIEW_ROWS
+  if (state.step === 'sent') {
+    return (
+      <a href={playlistUrl(state.playlistId)} target="_blank" rel="noreferrer">
+        {trackCountLabel(rest)} more on Spotify
+      </a>
+    )
+  }
+  return `${trackCountLabel(rest)} more in the mix.`
 }
 
 const NOT_PLAYING = 'Your mix isn’t playing on Spotify right now. Start it there, then try again.'

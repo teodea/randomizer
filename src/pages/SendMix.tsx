@@ -4,24 +4,23 @@ import type { SendState } from './useSendMix'
 interface SendMixProps {
   state: SendState
   busy: boolean
-  onSend: () => void
   onRetryPlayback: () => void
 }
 
-/** The button that sends the mix to Spotify, and how that went. */
-export function SendMix({ state, busy, onSend, onRetryPlayback }: SendMixProps) {
+/**
+ * How sending the mix to Spotify went. The button itself lives on the ticket, so
+ * the action stays with the listener while they read the mix.
+ */
+export function SendMix({ state, busy, onRetryPlayback }: SendMixProps) {
   return (
     <div className="send-mix">
-      <p>
-        <button type="button" disabled={busy} onClick={onSend}>
-          Play on Spotify
-        </button>
-      </p>
       {state.step === 'failed' ? (
-        <p role="alert">Couldn&rsquo;t send the mix to Spotify. Try again.</p>
+        <p className="notice" data-label="Spotify" role="alert">
+          Couldn&rsquo;t send the mix to Spotify. Try again.
+        </p>
       ) : (
         <div role="status">
-          <SendStatus state={state} onRetryPlayback={onRetryPlayback} />
+          <SendStatus state={state} busy={busy} onRetryPlayback={onRetryPlayback} />
         </div>
       )}
     </div>
@@ -30,30 +29,38 @@ export function SendMix({ state, busy, onSend, onRetryPlayback }: SendMixProps) 
 
 const playlistName = <>&ldquo;{TEMPORARY_PLAYLIST.name}&rdquo;</>
 
-function SendStatus({ state, onRetryPlayback }: { state: SendState; onRetryPlayback: () => void }) {
+function SendStatus({
+  state,
+  busy,
+  onRetryPlayback,
+}: {
+  state: SendState
+  busy: boolean
+  onRetryPlayback: () => void
+}) {
   switch (state.step) {
     case 'writing':
       return (
         <>
-          <p>
+          <p className="hint">
             Writing the mix to {playlistName}: {state.written} of {state.total} tracks…
           </p>
           <progress aria-label="Tracks written" max={state.total} value={state.written} />
         </>
       )
     case 'starting':
-      return <p>Starting playback…</p>
+      return <p className="hint">Starting playback…</p>
     case 'sent':
       return (
         <>
           <p>{playbackMessage(state.playback)}</p>
           <p className="send-mix-actions">
             {(state.playback === 'no-device' || state.playback === 'failed') && (
-              <button type="button" onClick={onRetryPlayback}>
+              <button className="button" type="button" disabled={busy} onClick={onRetryPlayback}>
                 Try again
               </button>
             )}
-            <a href={playlistUrl(state.playlistId)} target="_blank" rel="noreferrer">
+            <a className="button" href={playlistUrl(state.playlistId)} target="_blank" rel="noreferrer">
               Open Spotify
             </a>
           </p>
