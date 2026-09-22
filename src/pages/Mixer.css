@@ -188,7 +188,7 @@
 
 .selection li:nth-child(even) .chip-index {
   background: var(--stamp-deep);
-  color: var(--block);
+  color: var(--stamp-deep-ink);
 }
 
 .chip-share {
@@ -252,7 +252,7 @@
 
 .share-seg:nth-child(even) {
   background: var(--stamp-deep);
-  color: var(--block);
+  color: var(--stamp-deep-ink);
 }
 
 .share-seg + .share-seg {

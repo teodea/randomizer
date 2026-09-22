@@ -57,7 +57,9 @@
   --sleeve-lit: #322d27;
   --stamp: #e2521d;
   --stamp-deep: #8c3411;
+  --stamp-lit: #f05f2a;
   --stamp-ink: #21100a;
+  --stamp-deep-ink: #ede7da;
   --block: #ede7da;
   --block-ink: #131010;
   --block-lit: #fffaf0;
@@ -110,6 +112,7 @@
   --stamp-deep: #5a1f09;
   --stamp-lit: #c8481a;
   --stamp-ink: #ffffff;
+  --stamp-deep-ink: #f0ece3;
   --block: #1b1812;
   --block-ink: #f0ece3;
   --block-lit: #2a251d;
@@ -442,6 +445,10 @@ input[type='checkbox']:checked {
   background-size: 100%;
 }
 
+:root[data-theme='light'] input[type='checkbox']:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23ffffff' stroke-width='2.25' stroke-linecap='square'%3E%3Cpath d='M3.5 8.5 6.5 11.5 12.5 4.5'/%3E%3C/svg%3E");
+}
+
 input[type='radio']:checked {
   box-shadow: inset 0 0 0 3px var(--board);
 }
@@ -660,13 +667,8 @@ progress::-moz-progress-bar {
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
-  min-height: 2.25rem;
+  min-height: var(--tap);
   cursor: pointer;
-}
-
-.theme-control input[type='radio'] {
-  width: 0.875rem;
-  height: 0.875rem;
 }
 
 .theme-control input[type='radio']:checked {
