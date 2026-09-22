@@ -724,3 +724,110 @@ progress::-moz-progress-bar {
     --measure: 92rem;
   }
 }
+
+/* ==========================================================================
+ * PROTOTYPE — motion. Amends the Flat Rule.
+ *
+ * The system was authored still: "nothing glows, nothing bounces, nothing
+ * lifts", and its only two moving parts were the share rail redistributing and
+ * the ticket counting up. Stillness read as a document rather than as a
+ * product, so motion is admitted here — under the world's own terms, not the
+ * category's. Nothing glows and nothing lifts still: things are *struck*. A
+ * rule draws, a cell stamps, a row settles, a button presses into the board
+ * and comes back. One curve, one duration, borrowed from the share rail so the
+ * page has a single hand.
+ *
+ * Cover art is exempt, and that is Spotify's rule and not a preference: no
+ * artwork is scaled, tilted, blurred or parallaxed anywhere in this file. A
+ * sleeve arrives with the cell that holds it and is otherwise never touched.
+ * ========================================================================== */
+
+:root {
+  /* The share rail's curve, promoted to the system's one easing. */
+  --ease-print: cubic-bezier(0.19, 1, 0.22, 1);
+  /* Something arriving. State committing stays at the 90ms it always was. */
+  --print: 440ms;
+}
+
+/*
+ * Nothing is hidden until something is there to show it: `reveals-armed` is put
+ * on by the observer, so a page whose script failed, or a reader who asked for
+ * stillness, gets the catalogue flat and complete.
+ */
+.reveals-armed [data-reveal] {
+  opacity: 0;
+}
+
+/*
+ * Longhands, not the shorthand: a rule that carries both `animation` and
+ * `animation-delay` has the shorthand expanded, and with a var() inside it the
+ * whole thing resolves to `animation-name: none` and nothing moves at all.
+ */
+.reveals-armed [data-reveal].is-shown {
+  animation-name: settle;
+  animation-duration: var(--print);
+  animation-timing-function: var(--ease-print);
+  animation-fill-mode: both;
+  /* Cells stamp a few at a time; the run is capped so a long sheet never crawls. */
+  animation-delay: min(calc(var(--i, 0) * 32ms), 288ms);
+}
+
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * A block's rule draws rather than fades: a mask cut in the ground retracts off
+ * it, which is the same device the share rail uses to separate its segments.
+ */
+.block {
+  position: relative;
+}
+
+.reveals-armed .block[data-reveal]::after {
+  content: '';
+  position: absolute;
+  inset: -1px 0 auto 0;
+  height: 1px;
+  background: var(--board);
+  transform-origin: right;
+}
+
+.reveals-armed .block[data-reveal].is-shown::after {
+  animation: unmask 560ms var(--ease-print) both;
+}
+
+@keyframes unmask {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/*
+ * Pressing. The block still does not lift — it goes *in*, one pixel, like a
+ * stamp meeting board, and the travel is the whole gesture.
+ */
+.button,
+button,
+.link-button {
+  transition: background-color 90ms linear, border-color 90ms linear, color 90ms linear,
+    transform 90ms var(--ease-print);
+}
+
+.button:active:not(:disabled),
+button:active:not(:disabled),
+.link-button:active:not(:disabled) {
+  transform: translateY(1px);
+}

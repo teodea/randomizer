@@ -1,5 +1,7 @@
+import { motion } from 'motion/react'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Link } from 'react-router'
+import DecryptedText from '../components/reactbits/DecryptedText'
 import { TEMPORARY_PLAYLIST, playlistUrl, splitLibrary } from '../app/temporaryPlaylist'
 import { StrikeIcon } from '../components/icons'
 import { SourcePicker } from '../components/SourcePicker'
@@ -11,7 +13,7 @@ import { equalShares, setShare, sharesByWeight, type Shares } from '../mixer/sha
 import { SourceUnavailableError } from '../spotify/errors'
 import type { SpotifyGateway } from '../spotify/gateway'
 import { trackUrl } from '../spotify/links'
-import type { Source } from '../spotify/types'
+import type { Source, Track } from '../spotify/types'
 import { defaultOrderForm, toOrder } from './orderForm'
 import { OrderSettings } from './OrderSettings'
 import { defaultPoolForm, toPoolOptions } from './poolForm'
@@ -257,7 +259,7 @@ export function Mixer({
    * mix is never a change below the fold.
    */
   const mixSection = mix && (
-    <section className="block area-mix" aria-labelledby="mix-heading">
+    <section className="block area-mix" data-reveal="" aria-labelledby="mix-heading">
       <h2 id="mix-heading">Your mix</h2>
       {mix.length === 0 ? (
         <p className="muted">No tracks match these settings.</p>
@@ -280,8 +282,8 @@ export function Mixer({
         />
       )}
       <ol className="mix-tracks" aria-label="Mix">
-        {mix.slice(0, PREVIEW_ROWS).map(({ track }, index) => (
-          <li key={`${index}-${track.id}`} aria-current={index === playingIndex ? 'true' : undefined}>
+        {rowKeys(mix.slice(0, PREVIEW_ROWS)).map(({ track, key }, index) => (
+          <motion.li layout transition={ROW_TRAVEL} key={key} aria-current={index === playingIndex ? 'true' : undefined}>
             {/* Spotify requires every track shown to link back to its own page. */}
             <a href={trackUrl(track.id)} target="_blank" rel="noreferrer">
               <span className="track-name">{track.name}</span>
@@ -291,7 +293,7 @@ export function Mixer({
                 {trackTimeLabel(track.durationMs)}
               </time>
             </a>
-          </li>
+          </motion.li>
         ))}
       </ol>
       {mix.length > PREVIEW_ROWS && <p className="mix-rest">{restOfMix(mix.length, sendMix.state)}</p>}
@@ -305,8 +307,25 @@ export function Mixer({
           Randomizer
         </Link>
         {/* The catalogue number is this mix's seed: no mix yet, no entry yet. */}
+        {/*
+          * The catalogue number resolves rather than appears: this mix's seed
+          * settling into its entry. Before there is a mix there is no entry, and
+          * six em-dashes are not a number to resolve, so they simply print.
+          */}
         <span className="rail-code" aria-hidden="true">
-          {mixSeed === null ? '——————' : catalogueNumber(mixSeed)}
+          {mixSeed === null ? (
+            '——————'
+          ) : (
+            <DecryptedText
+              key={mixSeed}
+              text={catalogueNumber(mixSeed)}
+              animateOn="view"
+              sequential
+              speed={28}
+              useOriginalCharsOnly={false}
+              characters="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
+            />
+          )}
         </span>
         <span className="rail-actions">
           {canSend && sendMix.playlistId && !sendMix.isLeftover && (
@@ -333,7 +352,7 @@ export function Mixer({
       <p className="muted">{subtitle}</p>
 
       {canSend && sendMix.isLeftover && (
-        <section className="block" aria-labelledby="leftover-heading">
+        <section className="block" data-reveal="" aria-labelledby="leftover-heading">
           <h2 id="leftover-heading">An earlier mix is still in your library</h2>
           <p>
             &ldquo;{TEMPORARY_PLAYLIST.name}&rdquo; is left from an earlier visit. Remove it, or keep it and your
@@ -367,7 +386,7 @@ export function Mixer({
         ))}
 
       <div className="workbench">
-      <section className="block area-sources" aria-labelledby="sources-heading">
+      <section className="block area-sources" data-reveal="" aria-labelledby="sources-heading">
         <h2 id="sources-heading">Sources</h2>
         {loadFailed ? (
           <p className="notice" data-label="Sources" role="alert">
@@ -385,7 +404,7 @@ export function Mixer({
         )}
       </section>
 
-      <section className="block area-selected" aria-labelledby="selection-heading">
+      <section className="block area-selected" data-reveal="" aria-labelledby="selection-heading">
         <h2 id="selection-heading">Selected</h2>
         {/*
          * The share rail: one field reading 100% across. Uniform, balanced and custom
@@ -477,7 +496,7 @@ export function Mixer({
       <div className="params">
       <PoolSettings form={poolForm} onChange={setPoolForm} />
 
-      <section className="block" aria-labelledby="weighting-heading">
+      <section className="block" data-reveal="" aria-labelledby="weighting-heading">
         <h2 id="weighting-heading">Weighting</h2>
         <fieldset className="mode-options">
           <legend>How often each source plays</legend>
@@ -583,6 +602,27 @@ export function Mixer({
 
 function trackIds(items: MixItem[]): string[] {
   return items.map(({ track }) => track.id)
+}
+
+/**
+ * How long a row takes to travel to its new place after a reshuffle. The share
+ * rail's curve and the system's one arrival duration, so the mix reorders in
+ * the same hand the rest of the page moves in.
+ */
+const ROW_TRAVEL = { duration: 0.44, ease: [0.19, 1, 0.22, 1] } as const
+
+/**
+ * A row's identity, which is what lets it travel rather than be redrawn. A mix
+ * can legitimately hold the same track twice — two sources, duplicates left in —
+ * so the key is the track *and* which time this is.
+ */
+function rowKeys(items: MixItem[]): { track: Track; key: string }[] {
+  const seen = new Map<string, number>()
+  return items.map(({ track }) => {
+    const nth = (seen.get(track.id) ?? 0) + 1
+    seen.set(track.id, nth)
+    return { track, key: `${track.id}#${nth}` }
+  })
 }
 
 /**

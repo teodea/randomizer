@@ -15,7 +15,7 @@ export function OrderSettings({ form, onChange }: OrderSettingsProps) {
   const set = <K extends keyof OrderForm>(key: K, value: OrderForm[K]) => onChange({ ...form, [key]: value })
 
   return (
-    <section className="block" aria-labelledby="order-heading">
+    <section className="block" data-reveal="" aria-labelledby="order-heading">
       <h2 id="order-heading">Order</h2>
       <fieldset className="mode-options">
         <legend>How the sources follow each other</legend>

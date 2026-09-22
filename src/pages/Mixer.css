@@ -912,3 +912,48 @@
     height: 3.25rem;
   }
 }
+
+/* ==========================================================================
+ * PROTOTYPE — motion in the mixer.
+ * ========================================================================== */
+
+/*
+ * A spine answers the pointer with its own index cell, not with the sleeve:
+ * the cell that would be stamped if you clicked shows you it is about to be.
+ * The artwork does not react at all, here or anywhere.
+ */
+.spine:hover:not(.unavailable) .spine-index {
+  border-color: var(--stamp);
+  color: var(--ink);
+}
+
+.spine input:checked ~ .spine-index {
+  /* The stamp lands rather than appears: 90ms of ink, then it is simply there. */
+  animation: stamp 180ms var(--ease-print) both;
+}
+
+@keyframes stamp {
+  from {
+    transform: scale(0.82);
+  }
+
+  to {
+    transform: none;
+  }
+}
+
+/*
+ * The mix is the one list in the app that reorders itself under the reader —
+ * `Reshuffle the rest` is the product's central verb — so the rows carry it.
+ * Each row keeps its identity across a reshuffle and travels to its new place
+ * instead of the list redrawing, which is the difference between a list that
+ * changed and a mix that was mixed.
+ */
+.mix-tracks li {
+  will-change: transform;
+}
+
+/* The ticket's own arrival, once a mix exists to put in it. */
+.ticket-entry {
+  animation: settle 320ms var(--ease-print) both;
+}

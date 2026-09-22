@@ -9,7 +9,7 @@ export function PoolSettings({ form, onChange }: PoolSettingsProps) {
   const set = <K extends keyof PoolForm>(key: K, value: PoolForm[K]) => onChange({ ...form, [key]: value })
 
   return (
-    <section className="block" id="mix-settings" aria-labelledby="pool-heading">
+    <section className="block" data-reveal="" id="mix-settings" aria-labelledby="pool-heading">
       <h2 id="pool-heading">Tracks</h2>
       <div className="settings-fields">
         <label className="check">

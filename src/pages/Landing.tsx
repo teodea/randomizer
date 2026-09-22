@@ -83,7 +83,7 @@ export function Landing() {
         </li>
       </ol>
 
-      <section className="block" aria-labelledby="demo-heading">
+      <section className="block" data-reveal="" aria-labelledby="demo-heading">
         <h2 id="demo-heading">Try it</h2>
         <p>
           <Link className="button" to="/demo">
@@ -93,7 +93,7 @@ export function Landing() {
         <p className="hint">Sample playlists, no account needed.</p>
       </section>
 
-      <section className="block" aria-labelledby="login-heading">
+      <section className="block" data-reveal="" aria-labelledby="login-heading">
         <h2 id="login-heading">Log in</h2>
         {loggedIn ? (
           <p className="actions">

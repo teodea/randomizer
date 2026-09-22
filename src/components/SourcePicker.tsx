@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useState, type CSSProperties } from 'react'
 import { trackCountLabel } from '../format'
 import { sourceUrl } from '../spotify/links'
 import type { Source } from '../spotify/types'
@@ -32,11 +32,17 @@ export function SourcePicker({ sources, selectedIds, unavailableIds, onToggle }:
         <p className="muted">No playlists match &ldquo;{query.trim()}&rdquo;.</p>
       ) : (
         <ul className="source-list">
-          {shown.map((source) => {
+          {shown.map((source, index) => {
             const unavailable = unavailableIds.includes(source.id)
             const place = selectedIds.indexOf(source.id)
             return (
-              <li key={source.id}>
+              <li
+                key={source.id}
+                data-reveal=""
+                // Cells stamp in a short run that repeats, so a 150-playlist rack
+                // never has a last cell waiting four seconds for its turn.
+                style={{ '--i': index % 8 } as CSSProperties}
+              >
                 <label className={unavailable ? 'spine unavailable' : 'spine'}>
                   <input
                     className="visually-hidden"
