@@ -56,8 +56,15 @@ export function Privacy() {
       <p>
         Randomizer keeps your Spotify login (the access and refresh tokens Spotify issues, never
         your password) in your browser&rsquo;s storage, so you stay logged in when you reload the
-        page. Your playlists, tracks and the current mix are kept in memory only while the page is
-        open. Randomizer sets no cookies. Logging out erases everything it kept in the browser.
+        page. It also keeps the identifiers of the last few playlists you mixed, so the list of
+        playlists opens on the ones you use, and which theme you chose. Nothing else about a
+        playlist is kept: its name, cover and tracks are read from Spotify on every visit and held
+        in memory only while the page is open, and so is the current mix. Randomizer sets no
+        cookies.
+      </p>
+      <p>
+        Logging out erases your login and the list of playlists you last mixed. Your theme is a
+        setting for this device rather than account data, so it stays.
       </p>
 
       <h2>How to disconnect</h2>

@@ -1,7 +1,8 @@
 import { motion } from 'motion/react'
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { Link } from 'react-router'
 import DecryptedText from '../components/reactbits/DecryptedText'
+import { forgetRecentSources, noteSourcesMixed, recentSources } from '../app/recentSources'
 import { TEMPORARY_PLAYLIST, playlistUrl, splitLibrary } from '../app/temporaryPlaylist'
 import { StrikeIcon } from '../components/icons'
 import { SourcePicker } from '../components/SourcePicker'
@@ -63,6 +64,8 @@ export function Mixer({
   const [library, setLibrary] = useState<Source[] | null>(null)
   const [loadFailed, setLoadFailed] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  // What this device last mixed, which is what the rack opens on.
+  const [recentIds, setRecentIds] = useState<string[]>(recentSources)
   const [weightingMode, setWeightingMode] = useState<WeightingMode>('uniform')
   const [shares, setShares] = useState<Shares>({})
   const [unavailableIds, setUnavailableIds] = useState<string[]>([])
@@ -97,10 +100,17 @@ export function Mixer({
     }
   }, [gateway])
 
-  // The app's own playlist is where mixes go, never something to mix from.
-  const { sources, temporaryPlaylistId } = library
-    ? splitLibrary(library)
-    : { sources: null, temporaryPlaylistId: null }
+  /*
+   * The app's own playlist is where mixes go, never something to mix from.
+   *
+   * Memoised because the rack settles its order against this array's identity: a
+   * fresh array every render would re-settle the rack on every keystroke, every
+   * slider drag, every tick of the ticket's count.
+   */
+  const { sources, temporaryPlaylistId } = useMemo(
+    () => (library ? splitLibrary(library) : { sources: null, temporaryPlaylistId: null }),
+    [library],
+  )
   const sendMix = useSendMix(gateway, library ? temporaryPlaylistId : undefined)
 
   const selected = selectedIds
@@ -156,6 +166,9 @@ export function Mixer({
     setLoggingOut(true)
     // If removing fails, the next visit finds the playlist and offers to remove it.
     await sendMix.cleanUp()
+    // The rack's memory is one account's playlists; it does not outlast the session.
+    forgetRecentSources()
+    setRecentIds([])
     onLogout?.()
   }
 
@@ -190,6 +203,12 @@ export function Mixer({
       const options = { pool, weighting, order, spreadArtists: orderForm.spreadArtists }
       const seed = newSeed()
       showMix(mixSources.length > 0 ? buildMix(mixSources, options, createRng(seed)) : null, options, seed)
+      /*
+       * Having been mixed is what makes a source recent, so the rack opens on it
+       * next time. Only the sources that actually gave tracks count: one Spotify
+       * would not let the app read was not mixed, whatever the listener picked.
+       */
+      if (mixSources.length > 0) setRecentIds(noteSourcesMixed(mixSources.map(({ id }) => id)))
     } catch {
       if (version === selectionVersion.current) setGenerateFailed(true)
     } finally {
@@ -386,24 +405,15 @@ export function Mixer({
         ))}
 
       <div className="workbench">
-      <section className="block area-sources" data-reveal="" aria-labelledby="sources-heading">
-        <h2 id="sources-heading">Sources</h2>
-        {loadFailed ? (
-          <p className="notice" data-label="Sources" role="alert">
-            Couldn&rsquo;t load the playlists. Reload the page to try again.
-          </p>
-        ) : sources === null ? (
-          <p className="muted">Loading playlists…</p>
-        ) : (
-          <SourcePicker
-            sources={sources}
-            selectedIds={selectedIds}
-            unavailableIds={unavailableIds}
-            onToggle={toggle}
-          />
-        )}
-      </section>
-
+      {/*
+       * The blend comes before the rack, on every width.
+       *
+       * On the board this was already so — the grid puts `selected` on the first
+       * row — but in the stack the rack came first, so the one object that says
+       * what you have chosen sat *below* the whole library. With a rack of two
+       * hundred that is a dozen screens between a tap and its only confirmation.
+       * Areas are placed by name, so the board is untouched by this order.
+       */}
       <section className="block area-selected" data-reveal="" aria-labelledby="selection-heading">
         <h2 id="selection-heading">Selected</h2>
         {/*
@@ -488,6 +498,25 @@ export function Mixer({
               Shares always add up to 100%. When a source runs out, the rest keep their proportions.
             </p>
           </>
+        )}
+      </section>
+
+      <section className="block area-sources" data-reveal="" aria-labelledby="sources-heading">
+        <h2 id="sources-heading">Sources</h2>
+        {loadFailed ? (
+          <p className="notice" data-label="Sources" role="alert">
+            Couldn&rsquo;t load the playlists. Reload the page to try again.
+          </p>
+        ) : sources === null ? (
+          <p className="muted">Loading playlists…</p>
+        ) : (
+          <SourcePicker
+            sources={sources}
+            selectedIds={selectedIds}
+            recentIds={recentIds}
+            unavailableIds={unavailableIds}
+            onToggle={toggle}
+          />
         )}
       </section>
 

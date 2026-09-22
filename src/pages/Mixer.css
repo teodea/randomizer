@@ -15,6 +15,26 @@
   color: var(--ink-2);
 }
 
+/*
+ * The rack's head: what you are looking for on the left, how much there is to
+ * look through on the right. The count is a measurement, so it is set in mono
+ * like every other measurement in this catalogue.
+ */
+.rack-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.rack-count {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
 .source-list,
 .selection,
 .weights,
@@ -22,6 +42,32 @@
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+/*
+ * The rack as a window, not as the page.
+ *
+ * MEASURED: a spine is 77px — a 60px sleeve, 8px of padding above and below, and
+ * the rule under it — so a library of 150 runs 11,550px, fourteen screens on a
+ * phone, with the blend, the mix and every setting behind it. The rack is given
+ * a height of its own instead, and scrolls inside it.
+ *
+ * Five rows and a half, and the half is the whole point: at exactly six rows the
+ * field ends flush and reads as a complete list of six, because a touch screen
+ * draws no scrollbar to say otherwise. The cut row is the only affordance the
+ * Flat Rule allows — no shade, no fade, no inner shadow — so it has to be there.
+ *
+ * And five and a half, not eight: eight rows is 616px of an 844px phone, which
+ * leaves the reader no page left to push. A window that swallows the screen has
+ * traded a long scroll for a page that will not scroll at all.
+ */
+.source-list {
+  --spine: 4.8125rem;
+
+  max-height: calc(var(--spine) * 5.5);
+  overflow-y: auto;
+  /* The page does not take over when the rack reaches its end. */
+  overscroll-behavior: contain;
 }
 
 /* A source is a spine on the rack: stamped index, untouched cover, then its setting. */
@@ -736,6 +782,15 @@
  */
 @media (min-width: 64rem) {
 .source-list {
+  /*
+   * The board takes the window off again. The sheet is not a list squeezed into
+   * a corner of the page: it is the page's left half, beside the mix, and it was
+   * measured against the stacked list on that basis. Whether it too should be
+   * bounded is a question about the board, and the board is not this file's.
+   */
+  max-height: none;
+  overflow: visible;
+
   display: grid;
   /*
    * 10rem, not 12. A 12rem minimum sets a 25-character name on one line, which is
