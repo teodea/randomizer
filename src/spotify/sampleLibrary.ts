@@ -96,4 +96,38 @@ export const sampleLibrary: FakeSource[] = [
 ]
 
 /** The gateway demo mode runs on: the fake implementation over the sample library. */
-export const demoGateway = createFakeGateway(sampleLibrary)
+/*
+ * PROTOTYPE ONLY — `?crate=40` pads the rack with invented playlists so the
+ * contact sheet can be judged against a library the size a real one is. Off by
+ * default, so the demo and the test suite never see it. Delete with the prototype.
+ */
+const CRATE_NAMES = [
+  'Morning Run', 'Deep Focus', 'Kitchen Disco', 'Old Vinyl', 'B-Sides & Rarities',
+  'Road Trip 2019', 'Slow Burn', 'Night Bus', 'Study Hall', 'Warm Up',
+  'Cooldown', 'Late Shift', 'Summer Porch', 'Winter Light', 'Analogue Drift',
+  'Tape Hiss and Other Small Comforts', 'Corner Shop', 'Blue Hour', 'First Light', 'Dubplate',
+  'Sunday Long Player', 'Motorik', 'Hold Music', 'Field Recordings', 'Closing Time',
+  'Things I Heard in a Bar', 'Third Coffee', 'Low Ceiling', 'Paper Round', 'Last Orders',
+]
+
+function padRack(list: FakeSource[]): FakeSource[] {
+  const wanted = Number(new URLSearchParams(globalThis.location?.search ?? '').get('crate') ?? 0)
+  if (!wanted) return list
+  const covers = Object.values(COVERS)
+  const extra: FakeSource[] = []
+  for (let i = 0; list.length + extra.length < wanted; i++) {
+    const name = CRATE_NAMES[i % CRATE_NAMES.length]
+    const source = list[i % list.length]
+    extra.push({
+      ...source,
+      id: `crate-${i}`,
+      name: i >= CRATE_NAMES.length ? `${name} ${Math.floor(i / CRATE_NAMES.length) + 1}` : name,
+      // Every fourth playlist has no sleeve on file, as a real library does.
+      imageUrl: i % 4 === 3 ? null : covers[i % covers.length],
+      tracks: source.tracks.slice(0, 3 + (i % 9)),
+    })
+  }
+  return [...list, ...extra]
+}
+
+export const demoGateway = createFakeGateway(padRack(sampleLibrary))

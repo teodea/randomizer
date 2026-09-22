@@ -695,3 +695,212 @@
   letter-spacing: 0.06em;
   color: var(--ink-3);
 }
+
+/* ==========================================================================
+ * PROTOTYPE — the workbench and the contact sheet.
+ *
+ * The phone stack is a sequence: rack, blend, mix, settings. On a desk the same
+ * catalogue is furniture on a board: the rail takes the width it has always
+ * wanted, the three parameter blocks set side by side as ruled columns, and the
+ * rack opens from a list of spines into a contact sheet of sleeves.
+ *
+ * Nothing here is new content. Every cell was already on the page, below the
+ * fold.
+ * ========================================================================== */
+
+/* The wrappers are scaffolding, not boxes: on a phone they disappear entirely. */
+.workbench,
+.params {
+  display: contents;
+}
+
+/*
+ * The rack as a contact sheet. The cell's minimum is not taste: Spotify asks a
+ * playlist name to have room for 25 characters, which measures 162px in Archivo
+ * at this size, so a cell narrower than ~10rem cannot set a name on one line.
+ * Below that the sheet does not shrink the cell, it drops a column.
+ */
+/*
+ * MEASURED, per playlist, on a 40-playlist rack:
+ *
+ *   view            stacked list   contact sheet
+ *   mobile   375px      76px          ~195px   the sheet is a mistake
+ *   tablet   768px      76px            85px   the sheet is still a mistake
+ *   laptop  1280px      76px            56px   the sheet pays for itself
+ *   desktop 1920px      76px            51px
+ *
+ * A cell is tall — a square sleeve plus a two-line caption — so the sheet only
+ * wins once enough cells fit across to beat that height. That happens at 64rem
+ * and not before, which is the same width where the board opens. Under it the
+ * rack stays a rack.
+ */
+@media (min-width: 64rem) {
+.source-list {
+  display: grid;
+  /*
+   * 10rem, not 12. A 12rem minimum sets a 25-character name on one line, which is
+   * what Spotify asks for — but it drops the sheet to three columns beside the mix
+   * and the rack costs 103px a playlist against the stacked list's 76. The name
+   * wrapping to a second line is allowed; being slower to scan than the list it
+   * replaced is not.
+   */
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  /*
+   * One field cut into cells. The seam is drawn once, by each cell's right and
+   * bottom edge plus the sheet's own top and left, so a row that does not fill
+   * its last track leaves board rather than a grey stub.
+   */
+  border-top: 1px solid var(--rule);
+  border-left: 1px solid var(--rule);
+}
+
+.source-list li {
+  display: block;
+  position: relative;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+/* The stacked list drew its own seams; the sheet draws them in the ground. */
+.source-list li + li {
+  border-top: 0;
+}
+
+.spine {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  grid-template-areas:
+    'cover cover'
+    'index text';
+  gap: var(--s2);
+  padding: var(--s2);
+  align-items: start;
+}
+
+/*
+ * The sleeve at full cell width. Spotify's rules bind hardest exactly here: the
+ * art is never cropped, never covered, so the index that marks a selected source
+ * is stamped in the caption below it and never as a badge on top of it.
+ */
+.source-cover {
+  grid-area: cover;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.spine-index {
+  grid-area: index;
+}
+
+.source-text {
+  grid-area: text;
+  /* Room kept for the back-link, which sits in the caption and never on the art. */
+  padding-right: 1.5rem;
+}
+
+/* Selection is the whole cell, not a mark on the sleeve. */
+.spine input:checked ~ .source-text .source-name {
+  font-weight: 600;
+}
+
+.source-list li:has(.spine input:checked) {
+  background: var(--sleeve);
+}
+
+.spine-link {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+/* The count is a measurement: it wraps to its own line rather than being cut. */
+.source-meta {
+  white-space: nowrap;
+}
+}
+
+@media (min-width: 90rem) {
+  /*
+   * The desktop gain is more cells, not fatter ones: a 12rem minimum here bought
+   * slightly larger sleeves and cost 20px a playlist. The board gives the sheet
+   * the width instead, and the mix keeps only what it needs.
+   */
+  .workbench {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+  }
+
+  /* Spotify's own rule: 4px on small and medium screens, 8px on large. */
+  .source-cover {
+    border-radius: 8px;
+  }
+}
+
+/* The three parameter blocks set as columns of one band. */
+@media (min-width: 40rem) {
+  .params {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--s6);
+    align-items: start;
+  }
+
+  .params > :last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 64rem) {
+  .params {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .params > :last-child {
+    grid-column: auto;
+  }
+
+  /* The board. The rail and the band span it; the sheet and the mix share it. */
+  .workbench {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    grid-template-areas:
+      'selected selected'
+      'params   params'
+      'sources  mix';
+    column-gap: var(--s6);
+    align-items: start;
+  }
+
+  .area-selected {
+    grid-area: selected;
+  }
+
+  .params {
+    grid-area: params;
+  }
+
+  .area-sources {
+    grid-area: sources;
+  }
+
+  .area-mix {
+    grid-area: mix;
+    position: sticky;
+    top: var(--s5);
+  }
+
+  /* No mix yet: the sheet takes the whole board rather than keeping a hole. */
+  .workbench:not(:has(.area-mix)) {
+    grid-template-areas:
+      'selected selected'
+      'params   params'
+      'sources  sources';
+  }
+
+  /* Given the width, the field that reads the blend can finally be read. */
+  .share-rail {
+    height: 3.25rem;
+  }
+}

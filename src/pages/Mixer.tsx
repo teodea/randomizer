@@ -257,7 +257,7 @@ export function Mixer({
    * mix is never a change below the fold.
    */
   const mixSection = mix && (
-    <section className="block" aria-labelledby="mix-heading">
+    <section className="block area-mix" aria-labelledby="mix-heading">
       <h2 id="mix-heading">Your mix</h2>
       {mix.length === 0 ? (
         <p className="muted">No tracks match these settings.</p>
@@ -366,7 +366,8 @@ export function Mixer({
           </p>
         ))}
 
-      <section className="block" aria-labelledby="sources-heading">
+      <div className="workbench">
+      <section className="block area-sources" aria-labelledby="sources-heading">
         <h2 id="sources-heading">Sources</h2>
         {loadFailed ? (
           <p className="notice" data-label="Sources" role="alert">
@@ -384,7 +385,7 @@ export function Mixer({
         )}
       </section>
 
-      <section className="block" aria-labelledby="selection-heading">
+      <section className="block area-selected" aria-labelledby="selection-heading">
         <h2 id="selection-heading">Selected</h2>
         {/*
          * The share rail: one field reading 100% across. Uniform, balanced and custom
@@ -437,10 +438,43 @@ export function Mixer({
             ))}
           </ul>
         )}
+        {/*
+         * The custom shares are the rail's own controls, not a sub-setting of the
+         * weighting radio: a slider belongs beside the segment it moves.
+         */}
+        {weightingMode === 'custom' && selected.length > 0 && (
+          <>
+            <ul className="weights">
+              {selected.map((source) => {
+                const share = shares[source.id] ?? 0
+                return (
+                  <li key={source.id}>
+                    <label htmlFor={`weight-${source.id}`}>{source.name}</label>
+                    <input
+                      id={`weight-${source.id}`}
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={share}
+                      aria-valuetext={`${share}%`}
+                      onChange={(event) => setShares(setShare(shares, source.id, Number(event.target.value)))}
+                    />
+                    <output htmlFor={`weight-${source.id}`}>{share}%</output>
+                  </li>
+                )
+              })}
+            </ul>
+            <p className="hint">
+              Shares always add up to 100%. When a source runs out, the rest keep their proportions.
+            </p>
+          </>
+        )}
       </section>
 
       {mixSection}
 
+      <div className="params">
       <PoolSettings form={poolForm} onChange={setPoolForm} />
 
       <section className="block" aria-labelledby="weighting-heading">
@@ -461,40 +495,16 @@ export function Mixer({
             </label>
           ))}
         </fieldset>
-        {weightingMode === 'custom' &&
-          (selected.length === 0 ? (
-            <p className="muted">Select sources to set their shares.</p>
-          ) : (
-            <>
-              <ul className="weights">
-                {selected.map((source) => {
-                  const share = shares[source.id] ?? 0
-                  return (
-                    <li key={source.id}>
-                      <label htmlFor={`weight-${source.id}`}>{source.name}</label>
-                      <input
-                        id={`weight-${source.id}`}
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={1}
-                        value={share}
-                        aria-valuetext={`${share}%`}
-                        onChange={(event) => setShares(setShare(shares, source.id, Number(event.target.value)))}
-                      />
-                      <output htmlFor={`weight-${source.id}`}>{share}%</output>
-                    </li>
-                  )
-                })}
-              </ul>
-              <p className="hint">
-                Shares always add up to 100%. When a source runs out, the rest keep their proportions.
-              </p>
-            </>
-          ))}
+        {weightingMode === 'custom' && (
+          <p className="hint">
+            {selected.length === 0 ? 'Select sources to set their shares.' : 'Set each share on the rail above.'}
+          </p>
+        )}
       </section>
 
       <OrderSettings form={orderForm} onChange={setOrderForm} />
+      </div>
+      </div>
 
       {generateFailed && (
         <p className="notice" data-label="Tracks" role="alert">

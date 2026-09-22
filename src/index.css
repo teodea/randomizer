@@ -674,3 +674,33 @@ progress::-moz-progress-bar {
 .theme-control input[type='radio']:checked {
   box-shadow: inset 0 0 0 2px var(--board);
 }
+
+/*
+ * PROTOTYPE — the four views.
+ *
+ * The measure is the phone's and stays the phone's everywhere prose is read:
+ * the landing page, the privacy policy, the terms. Only the mixer, which is a
+ * board of furniture rather than a page of text, is allowed to widen — and the
+ * footer widens with it, because the footer is the same furniture.
+ *
+ *   mobile   < 40rem   the stack, unchanged
+ *   tablet  40–64rem   the stack, parameters in two columns
+ *   laptop  64–90rem   the board: rail, band, sheet beside the mix
+ *   desktop  ≥ 90rem   the board, wider, with larger sleeves
+ */
+@media (min-width: 64rem) {
+  :root:has(.workbench) {
+    --measure: 74rem;
+  }
+
+  .page:has(.workbench) {
+    padding-left: var(--s5);
+    padding-right: var(--s5);
+  }
+}
+
+@media (min-width: 90rem) {
+  :root:has(.workbench) {
+    --measure: 92rem;
+  }
+}
