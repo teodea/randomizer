@@ -802,6 +802,49 @@
   outline-color: var(--block-ink);
 }
 
+/*
+ * Back to the top of the rack: a tab cut from the ticket's own block, hanging
+ * off its top edge at the right. It is part of the ticket rather than a second
+ * thing floating over the page, so the one stacked object stays one; and at the
+ * right edge it sits over a spine's link cell or the settings column, never
+ * over a cover. Its focus ring is drawn inside, where the block holds it.
+ */
+.ticket-top {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--block);
+  color: var(--block-ink);
+  cursor: pointer;
+  transition: background-color 90ms linear;
+}
+
+.ticket-top svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.ticket-top:hover {
+  background: var(--block-lit);
+}
+
+.ticket-top:focus-visible {
+  outline-color: var(--block-ink);
+  outline-offset: -4px;
+}
+
+/* Where the tab lands: the section's rule, with a little ground above it. */
+.area-sources {
+  scroll-margin-top: var(--s4);
+}
+
 .ticket .button {
   border-color: var(--block-ink);
   color: var(--block-ink);
@@ -1155,7 +1198,8 @@
     top: 0;
     max-height: calc(100dvh - var(--ticket-height, 6rem));
     margin: 0 calc(-1 * var(--s1));
-    padding: 0 var(--s1) var(--s5);
+    /* The foot clears the ticket's back-to-top tab, which hangs over this column. */
+    padding: 0 var(--s1) calc(2.75rem + var(--s3));
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;

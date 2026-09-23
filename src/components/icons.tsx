@@ -28,6 +28,15 @@ export function ChevronIcon() {
   )
 }
 
+/** Goes back up to the top of something long. */
+export function UpIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" {...stroke}>
+      <path d="M8 13V4M4 8l4-4 4 4" />
+    </svg>
+  )
+}
+
 /** Opens something in Spotify. */
 export function OpenIcon() {
   return (

@@ -1,4 +1,4 @@
-import { useId, useState, type CSSProperties } from 'react'
+import { useId, useState, type CSSProperties, type Ref } from 'react'
 import { trackCountLabel } from '../format'
 import { sourceUrl } from '../spotify/links'
 import type { Source } from '../spotify/types'
@@ -13,6 +13,8 @@ interface SourcePickerProps {
   /** Sources Spotify won't let the app read; shown but not selectable. */
   unavailableIds: string[]
   onToggle: (id: string) => void
+  /** Receives the list element, so the page can scroll the rack back to its top. */
+  listRef?: Ref<HTMLUListElement>
 }
 
 type Maker = 'anyone' | 'me' | 'others'
@@ -37,7 +39,14 @@ const SORT_ORDERS: { value: SortOrder; label: string }[] = [
  * what it shows first is ranked: by default chosen, then last mixed, then
  * Spotify's order.
  */
-export function SourcePicker({ sources, selectedIds, recentIds, unavailableIds, onToggle }: SourcePickerProps) {
+export function SourcePicker({
+  sources,
+  selectedIds,
+  recentIds,
+  unavailableIds,
+  onToggle,
+  listRef,
+}: SourcePickerProps) {
   const [query, setQuery] = useState('')
   const [maker, setMaker] = useState<Maker>('anyone')
   const [sort, setSort] = useState<SortOrder>('recent')
@@ -125,7 +134,7 @@ export function SourcePicker({ sources, selectedIds, recentIds, unavailableIds, 
       {shown.length === 0 ? (
         <p className="muted rack-empty">{emptyRack(query.trim(), maker)}</p>
       ) : (
-        <ul className="source-list">
+        <ul className="source-list" ref={listRef}>
           {shown.map((source, index) => {
             const unavailable = unavailableIds.includes(source.id)
             const place = selectedIds.indexOf(source.id)

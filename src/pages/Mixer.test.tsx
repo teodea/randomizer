@@ -381,6 +381,34 @@ describe('Mixer', () => {
     expect(screen.getByRole('checkbox', { name: /evening/i }).closest('li')).toHaveTextContent('1 track')
   })
 
+  it('offers a way back to the top of the rack once it has been scrolled', async () => {
+    // jsdom lays nothing out, so it has no scrollIntoView of its own.
+    const scrolledIntoView: Element[] = []
+    const original = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolledIntoView.push(this)
+    }
+    try {
+      const user = renderMixer()
+      const rack = (await screen.findByRole('checkbox', { name: /morning/i })).closest('ul')!
+      expect(screen.queryByRole('button', { name: /back to top/i })).not.toBeInTheDocument()
+
+      rack.scrollTop = 400
+      fireEvent.scroll(rack)
+      await user.click(screen.getByRole('button', { name: /back to top/i }))
+
+      expect(rack.scrollTop).toBe(0)
+      expect(scrolledIntoView).toEqual([screen.getByRole('region', { name: 'Sources' })])
+      expect(screen.getByRole('heading', { name: 'Sources' })).toHaveFocus()
+
+      // A browser reports the jump as a scroll; jsdom has to be told.
+      fireEvent.scroll(rack)
+      expect(screen.queryByRole('button', { name: /back to top/i })).not.toBeInTheDocument()
+    } finally {
+      Element.prototype.scrollIntoView = original
+    }
+  })
+
   it('filters the sources by name, keeping the selection', async () => {
     const user = renderMixer()
 

@@ -4,7 +4,7 @@ import { Link } from 'react-router'
 import DecryptedText from '../components/reactbits/DecryptedText'
 import { forgetRecentSources, noteSourcesMixed, recentSources } from '../app/recentSources'
 import { TEMPORARY_PLAYLIST, playlistUrl, splitLibrary } from '../app/temporaryPlaylist'
-import { StrikeIcon } from '../components/icons'
+import { StrikeIcon, UpIcon } from '../components/icons'
 import { Segmented, type SegmentedOption } from '../components/Segmented'
 import { SourcePicker } from '../components/SourcePicker'
 import { SpotifyCredit } from '../components/SpotifyCredit'
@@ -91,6 +91,10 @@ export function Mixer({
   const countRef = useRef<HTMLSpanElement>(null)
   const pageRef = useRef<HTMLElement>(null)
   const ticketRef = useRef<HTMLDivElement>(null)
+  const sourcesHeadingRef = useRef<HTMLHeadingElement>(null)
+  // The rack's list, which scrolls inside itself under the board's width.
+  const [rackList, setRackList] = useState<HTMLUListElement | null>(null)
+  const rackAway = useRackAway(sourcesHeadingRef, rackList)
 
   useEffect(() => {
     let active = true
@@ -412,7 +416,9 @@ export function Mixer({
        */}
       <div className="workbench">
       <section className="block area-sources" data-reveal="" aria-labelledby="sources-heading">
-        <h2 id="sources-heading">Sources</h2>
+        <h2 id="sources-heading" ref={sourcesHeadingRef} tabIndex={-1}>
+          Sources
+        </h2>
         {loadFailed ? (
           <p className="notice" data-label="Sources" role="alert">
             Couldn&rsquo;t load the playlists. Reload the page to try again.
@@ -426,6 +432,7 @@ export function Mixer({
             recentIds={recentIds}
             unavailableIds={unavailableIds}
             onToggle={toggle}
+            listRef={setRackList}
           />
         )}
       </section>
@@ -503,6 +510,22 @@ export function Mixer({
        * something visible and reachable instead of a change below the fold.
        */}
       <div className="ticket" ref={ticketRef}>
+        {/*
+         * The way back up a long rack: a tab cut from the ticket's own block,
+         * there only while the top of the rack is out of sight. Focus lands on
+         * the Sources heading, not in the search, so a phone's keyboard stays shut.
+         */}
+        {rackAway && (
+          <button
+            className="ticket-top"
+            type="button"
+            aria-label="Back to top of playlists"
+            title="Back to top of playlists"
+            onClick={() => backToRack(sourcesHeadingRef.current, rackList)}
+          >
+            <UpIcon />
+          </button>
+        )}
         {/*
          * The count is the entry: the numeral at catalogue scale, its unit and the
          * running time as the label beside it. Before there is a mix, the same slot
@@ -671,6 +694,49 @@ function useTicketHeight(ticket: RefObject<HTMLElement | null>, page: RefObject<
 /** This mix's entry in the catalogue, from the seed that produced it. */
 function catalogueNumber(seed: number): string {
   return `RND-${Math.abs(seed).toString(36).toUpperCase().padStart(6, '0').slice(-6)}`
+}
+
+/**
+ * Jumps, without easing like every jump here, to the top of the rack: its own
+ * window back to the first row, the page back to its section.
+ */
+function backToRack(heading: HTMLElement | null, list: HTMLElement | null) {
+  if (list) list.scrollTop = 0
+  heading?.closest('section')?.scrollIntoView({ block: 'start' })
+  heading?.focus({ preventScroll: true })
+}
+
+/**
+ * Whether the top of the rack is out of sight: its heading scrolled off above
+ * the window, or — where the rack is a window of its own — its list scrolled
+ * down inside itself.
+ */
+function useRackAway(heading: RefObject<HTMLElement | null>, list: HTMLElement | null): boolean {
+  const [headingAbove, setHeadingAbove] = useState(false)
+  const [listScrolled, setListScrolled] = useState(false)
+
+  useEffect(() => {
+    const node = heading.current
+    if (!node || typeof IntersectionObserver !== 'function') return
+    const observer = new IntersectionObserver(([entry]) =>
+      setHeadingAbove(!entry.isIntersecting && entry.boundingClientRect.top < 0),
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [heading])
+
+  useEffect(() => {
+    if (!list) return
+    const update = () => setListScrolled(list.scrollTop > 0)
+    update()
+    list.addEventListener('scroll', update, { passive: true })
+    return () => {
+      list.removeEventListener('scroll', update)
+      setListScrolled(false)
+    }
+  }, [list])
+
+  return headingAbove || listScrolled
 }
 
 /** What the ticket says while Generate can't run: the count's slot, not an empty one. */
