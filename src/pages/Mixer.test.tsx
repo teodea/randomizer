@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createFakeGateway, type FakeSource } from '../spotify/fakeGateway'
 import type { SpotifyGateway } from '../spotify/gateway'
 import type { Track } from '../spotify/types'
@@ -388,6 +388,8 @@ describe('Mixer', () => {
     Element.prototype.scrollIntoView = function (this: Element) {
       scrolledIntoView.push(this)
     }
+    // With reduced motion the way back is a jump, done by the time the click is.
+    window.matchMedia = (query) => ({ matches: query.includes('reduce'), media: query }) as MediaQueryList
     try {
       const user = renderMixer()
       const rack = (await screen.findByRole('checkbox', { name: /morning/i })).closest('ul')!
@@ -406,6 +408,26 @@ describe('Mixer', () => {
       expect(screen.queryByRole('button', { name: /back to top/i })).not.toBeInTheDocument()
     } finally {
       Element.prototype.scrollIntoView = original
+      // jsdom has no matchMedia at all; the app reads it optionally.
+      Reflect.deleteProperty(window, 'matchMedia')
+    }
+  })
+
+  it('runs back up the rack rather than jumping, when motion is welcome', async () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined)
+    try {
+      const user = renderMixer()
+      const rack = (await screen.findByRole('checkbox', { name: /morning/i })).closest('ul')!
+      rack.scrollTop = 400
+      fireEvent.scroll(rack)
+
+      await user.click(screen.getByRole('button', { name: /back to top/i }))
+
+      expect(screen.getByRole('heading', { name: 'Sources' })).toHaveFocus()
+      await waitFor(() => expect(rack.scrollTop).toBe(0))
+      expect(scrollTo).toHaveBeenCalled()
+    } finally {
+      scrollTo.mockRestore()
     }
   })
 

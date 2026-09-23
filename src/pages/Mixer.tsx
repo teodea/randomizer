@@ -697,14 +697,49 @@ function catalogueNumber(seed: number): string {
   return `RND-${Math.abs(seed).toString(36).toUpperCase().padStart(6, '0').slice(-6)}`
 }
 
+/** How long the run back up the rack takes, whatever the distance. */
+const RACK_RUN_MS = 400
+
+/** What the hand does to take the page back from a run in progress. */
+const INTERRUPTIONS = ['wheel', 'touchstart', 'keydown'] as const
+
 /**
- * Jumps, without easing like every jump here, to the top of the rack: its own
- * window back to the first row, the page back to its section.
+ * Runs back to the top of the rack: the page to its section and the rack's own
+ * window to its first row, together, fast and settling at the end. A fixed
+ * time rather than a speed, so two hundred playlists are no slower than twenty.
+ * Reduced motion jumps instead, and any wheel, touch or key stops the run
+ * where it is, so the page never fights the hand.
  */
 function backToRack(heading: HTMLElement | null, list: HTMLElement | null) {
-  if (list) list.scrollTop = 0
-  heading?.closest('section')?.scrollIntoView({ block: 'start' })
+  const section = heading?.closest('section') ?? null
   heading?.focus({ preventScroll: true })
+  const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  if (reduced || typeof requestAnimationFrame !== 'function') {
+    if (list) list.scrollTop = 0
+    section?.scrollIntoView({ block: 'start' })
+    return
+  }
+
+  const margin = section ? Number.parseFloat(getComputedStyle(section).scrollMarginTop) || 0 : 0
+  const pageFrom = window.scrollY
+  const pageTo = section ? Math.max(0, pageFrom + section.getBoundingClientRect().top - margin) : pageFrom
+  const listFrom = list?.scrollTop ?? 0
+  const began = performance.now()
+  const stop = () => {
+    cancelAnimationFrame(frame)
+    for (const type of INTERRUPTIONS) window.removeEventListener(type, stop)
+  }
+  for (const type of INTERRUPTIONS) window.addEventListener(type, stop, { passive: true })
+  // The time is read in each frame rather than taken from the frame's stamp,
+  // which can predate the click and would start the run behind itself.
+  let frame = requestAnimationFrame(function step() {
+    const progress = Math.min(1, (performance.now() - began) / RACK_RUN_MS)
+    const eased = 1 - (1 - progress) ** 3
+    window.scrollTo(0, pageFrom + (pageTo - pageFrom) * eased)
+    if (list) list.scrollTop = listFrom * (1 - eased)
+    if (progress < 1) frame = requestAnimationFrame(step)
+    else stop()
+  })
 }
 
 /**
