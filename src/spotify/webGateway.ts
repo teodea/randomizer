@@ -227,7 +227,11 @@ export function createWebGateway({
         description: null,
         ownedByUser: true,
       }
-      return [likedSongs, ...playlists.map((playlist) => mapPlaylist(playlist, me.id))]
+      // Spotify's pages can overlap: the last playlist of one page sometimes comes
+      // back first on the next. A source is listed once, where it first appeared.
+      const seen = new Set<string>()
+      const unique = playlists.filter((playlist) => !seen.has(playlist.id) && seen.add(playlist.id))
+      return [likedSongs, ...unique.map((playlist) => mapPlaylist(playlist, me.id))]
     },
 
     getSourceTracks(sourceId: string): Promise<Track[]> {

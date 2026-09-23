@@ -115,6 +115,24 @@ describe('real Spotify gateway: sources', () => {
     expect(requests.filter((url) => url.pathname === '/v1/me/playlists')).toHaveLength(3)
   })
 
+  it('lists a playlist once when Spotify repeats it across a page boundary', async () => {
+    // Seen on a real library: the last playlist of one page came back first on the next.
+    const { gateway } = setup((url) => {
+      if (url.pathname === '/v1/me/playlists')
+        return json(
+          url.searchParams.get('offset') === '2'
+            ? { items: [playlist('b'), playlist('c')], next: null }
+            : { items: [playlist('a'), playlist('b')], next: `${url.origin}/v1/me/playlists?offset=2` },
+        )
+      if (url.pathname === '/v1/me/tracks') return json({ items: [], total: 0, next: null })
+      if (url.pathname === '/v1/me') return json({ id: 'me' })
+    })
+
+    const sources = await gateway.listSources()
+
+    expect(sources.map((source) => source.id)).toEqual([LIKED_SONGS_ID, 'a', 'b', 'c'])
+  })
+
   it('reports an account that has been taken off the invite list', async () => {
     const { gateway } = setup(() => json({ error: { status: 403 } }, 403))
 
