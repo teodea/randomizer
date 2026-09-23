@@ -97,6 +97,7 @@ describe('real Spotify gateway: sources', () => {
       owner: 'You',
       trackCount: 321,
       imageUrl: null,
+      imageSrcSet: null,
       description: null,
       ownedByUser: true,
     })
@@ -105,7 +106,8 @@ describe('real Spotify gateway: sources', () => {
       name: 'Playlist p0',
       owner: 'Owner p0',
       trackCount: 10,
-      imageUrl: 'https://img/p0-60',
+      imageUrl: 'https://img/p0-640',
+      imageSrcSet: 'https://img/p0-640 640w, https://img/p0-60 60w',
       description: null,
       ownedByUser: false,
     })
@@ -127,6 +129,7 @@ describe('real Spotify gateway: sources', () => {
             playlist('old', { items: undefined, tracks: { total: 7 }, images: null }),
             null,
             playlist('blank', { images: [] }),
+            playlist('upload', { images: [{ url: 'https://img/upload', width: null, height: null }] }),
           ],
           next: null,
         })
@@ -136,9 +139,11 @@ describe('real Spotify gateway: sources', () => {
 
     const sources = await gateway.listSources()
 
-    expect(sources.map((source) => source.id)).toEqual([LIKED_SONGS_ID, 'old', 'blank'])
-    expect(sources[1]).toMatchObject({ trackCount: 7, imageUrl: null })
-    expect(sources[2].imageUrl).toBeNull()
+    expect(sources.map((source) => source.id)).toEqual([LIKED_SONGS_ID, 'old', 'blank', 'upload'])
+    expect(sources[1]).toMatchObject({ trackCount: 7, imageUrl: null, imageSrcSet: null })
+    expect(sources[2]).toMatchObject({ imageUrl: null, imageSrcSet: null })
+    // An uploaded cover without a width is shown as it is, with no srcset to choose from.
+    expect(sources[3]).toMatchObject({ imageUrl: 'https://img/upload', imageSrcSet: null })
   })
 
   it('says which playlists the user owns and keeps their descriptions', async () => {

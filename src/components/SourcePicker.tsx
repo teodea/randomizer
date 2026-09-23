@@ -150,7 +150,18 @@ export function SourcePicker({ sources, selectedIds, recentIds, unavailableIds, 
                     {place === -1 ? '' : place + 1}
                   </span>
                   {source.imageUrl ? (
-                    <img className="source-cover" src={source.imageUrl} alt="" width={48} height={48} loading="lazy" />
+                    <img
+                      className="source-cover"
+                      src={source.imageUrl}
+                      srcSet={source.imageSrcSet ?? undefined}
+                      // The widths Mixer.css draws the cover at: a spine's 3.75rem,
+                      // or a sheet cell, which is 10rem and grows to about 14.
+                      sizes="(min-width: 64rem) 14rem, 3.75rem"
+                      alt=""
+                      width={60}
+                      height={60}
+                      loading="lazy"
+                    />
                   ) : (
                     // No sleeve on file: the slot is drawn as an empty cell, not left blank.
                     <span className="source-cover no-sleeve" aria-hidden="true" />

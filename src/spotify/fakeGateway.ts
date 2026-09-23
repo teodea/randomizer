@@ -5,11 +5,11 @@ import type { Source, Track } from './types'
 /**
  * A source together with its tracks; the fake derives the track count from them.
  * An `unavailable` source is listed but its tracks can't be read, like a playlist
- * Spotify no longer lets the app open. Sources have no description and belong to
- * someone else unless said otherwise.
+ * Spotify no longer lets the app open. Sources have no description, a cover in one
+ * size only, and belong to someone else unless said otherwise.
  */
-export type FakeSource = Omit<Source, 'trackCount' | 'description' | 'ownedByUser'> &
-  Partial<Pick<Source, 'description' | 'ownedByUser'>> & { tracks: Track[]; unavailable?: boolean }
+export type FakeSource = Omit<Source, 'trackCount' | 'description' | 'ownedByUser' | 'imageSrcSet'> &
+  Partial<Pick<Source, 'description' | 'ownedByUser' | 'imageSrcSet'>> & { tracks: Track[]; unavailable?: boolean }
 
 export interface FakeGatewayOptions {
   /** What happens when the app asks to start playback. */
@@ -63,11 +63,12 @@ export function createFakeGateway(sources: FakeSource[], { playback = 'started' 
 
   return {
     async listSources(): Promise<Source[]> {
-      return playlists.map(({ id, name, owner, imageUrl, tracks, description, ownedByUser }) => ({
+      return playlists.map(({ id, name, owner, imageUrl, imageSrcSet, tracks, description, ownedByUser }) => ({
         id,
         name,
         owner,
         imageUrl,
+        imageSrcSet: imageSrcSet ?? null,
         trackCount: tracks.length,
         description: description ?? null,
         ownedByUser: ownedByUser ?? false,

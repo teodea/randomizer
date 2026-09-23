@@ -16,8 +16,10 @@ export interface Source {
   name: string
   owner: string
   trackCount: number
-  /** Cover art, when the source has one. */
+  /** Cover art, when the source has one: the largest size on file. */
   imageUrl: string | null
+  /** Every size of the cover as an `srcset`, when Spotify says how wide each one is. */
+  imageSrcSet: string | null
   /** The playlist's description, when it has one. */
   description: string | null
   /** Whether the logged-in user owns it; only their own playlists can be the app's temporary one. */

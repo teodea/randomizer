@@ -40,7 +40,7 @@ interface ApiPlaylist {
   name: string
   description?: string | null
   owner?: { display_name?: string | null; id?: string } | null
-  images?: { url: string }[] | null
+  images?: { url: string; width?: number | null }[] | null
   items?: { total: number } | null
   tracks?: { total: number } | null
 }
@@ -223,6 +223,7 @@ export function createWebGateway({
         owner: 'You',
         trackCount: liked.total ?? 0,
         imageUrl: null,
+        imageSrcSet: null,
         description: null,
         ownedByUser: true,
       }
@@ -351,11 +352,23 @@ function mapPlaylist(playlist: ApiPlaylist, userId: string): Source {
     name: playlist.name,
     owner: playlist.owner?.display_name ?? playlist.owner?.id ?? '',
     trackCount: playlist.items?.total ?? playlist.tracks?.total ?? 0,
-    // Images come largest first; the list shows small covers.
-    imageUrl: playlist.images?.at(-1)?.url ?? null,
+    // Images come largest first. The cover is drawn from 60px on a phone to a
+    // full grid cell on a laptop, so the browser picks the size from the srcset.
+    imageUrl: playlist.images?.[0]?.url ?? null,
+    imageSrcSet: srcSet(playlist.images),
     description: playlist.description || null,
     ownedByUser: playlist.owner?.id === userId,
   }
+}
+
+/**
+ * A cover's sizes as an `srcset`. A cover the owner uploaded can come as a single
+ * image with no width; without every width the browser can't choose, so there is
+ * no srcset and the largest image stands alone.
+ */
+function srcSet(images: ApiPlaylist['images']): string | null {
+  if (!images?.length || images.some((image) => !image.width)) return null
+  return images.map((image) => `${image.url} ${image.width}w`).join(', ')
 }
 
 function playlistItemsUrl(playlistId: string): string {
