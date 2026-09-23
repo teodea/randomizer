@@ -22,11 +22,15 @@ const COVERS: Record<string, string> = {
   'rainy-day-jazz': rainyDayJazzCover,
 }
 
+// Two of the sample playlists are the visitor's own, so "Made by" has something to narrow.
+const OWN = new Set(['late-night-drive', 'gym-rotation'])
+
 function playlist(id: string, name: string, tracks: SampleTrack[]): FakeSource {
   return {
     id,
     name,
-    owner: 'Demo',
+    owner: OWN.has(id) ? 'You' : 'Demo',
+    ownedByUser: OWN.has(id),
     imageUrl: COVERS[id] ?? null,
     tracks: tracks.map(
       ([trackName, artist, seconds, explicit = false], index): Track => ({
@@ -124,6 +128,9 @@ function padRack(list: FakeSource[]): FakeSource[] {
       name: i >= CRATE_NAMES.length ? `${name} ${Math.floor(i / CRATE_NAMES.length) + 1}` : name,
       // Every fourth playlist has no sleeve on file, as a real library does.
       imageUrl: i % 4 === 3 ? null : covers[i % covers.length],
+      // Roughly a third of a real library is the listener's own.
+      owner: i % 3 === 0 ? 'You' : 'Demo',
+      ownedByUser: i % 3 === 0,
       tracks: source.tracks.slice(0, 3 + (i % 9)),
     })
   }

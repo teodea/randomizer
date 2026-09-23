@@ -4,11 +4,6 @@ export function trackCountLabel(count: number) {
   return `${value} ${unit}`
 }
 
-/** "1 playlist", "214 playlists": the size of the library behind the rack's window. */
-export function sourceCountLabel(count: number) {
-  return `${count} ${count === 1 ? 'playlist' : 'playlists'}`
-}
-
 /**
  * The same count, split so the numeral can be set at catalogue scale while its
  * unit stays a label. Keeping one source for both means they can never disagree.

@@ -13,7 +13,7 @@ export interface PoolForm {
 }
 
 export const defaultPoolForm: PoolForm = {
-  removeDuplicates: false,
+  removeDuplicates: true,
   excludeExplicit: false,
   minMinutes: '',
   maxMinutes: '',

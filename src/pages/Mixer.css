@@ -4,13 +4,56 @@
  * the count and the one action the screen exists for.
  */
 
-.source-search {
-  display: grid;
-  gap: var(--s1);
-  margin-bottom: var(--s3);
+/*
+ * The rack's tools: find by name, narrow by who made it, sort. One ruled line on
+ * a desk; on a phone the search takes its own row and the other two share one.
+ */
+.area-sources {
+  container-type: inline-size;
 }
 
-.source-search label {
+.rack-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'search sort'
+    'maker  maker';
+  gap: var(--s3) var(--s4);
+  align-items: end;
+  margin-bottom: var(--s4);
+}
+
+.source-search {
+  grid-area: search;
+}
+
+.rack-tools .segmented {
+  grid-area: maker;
+}
+
+/* Three short labels and their counts: they size to their content and never wrap. */
+.rack-tools .segments label {
+  flex: 1 0 auto;
+  white-space: nowrap;
+}
+
+.source-sort {
+  grid-area: sort;
+}
+
+/* A search field's intrinsic width is about twenty characters; here it takes its cell's. */
+.source-search,
+.source-sort {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s1);
+  min-width: 0;
+  margin: 0;
+}
+
+.source-search label,
+.source-sort label,
+.rack-tools .segmented > legend {
   font-size: 0.8125rem;
   color: var(--ink-2);
 }
@@ -35,8 +78,65 @@
   color: var(--ink-3);
 }
 
+/* The tools follow the rack's own width, not the window's. */
+@container (min-width: 36rem) {
+  .rack-tools {
+    grid-template-areas:
+      'search search'
+      'maker  sort';
+  }
+
+  .rack-tools .segmented {
+    justify-self: start;
+  }
+}
+
+@container (min-width: 46rem) {
+  .rack-tools {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: 'search maker sort';
+  }
+}
+
+/* A native select, set into the board like every other field. */
+.select {
+  position: relative;
+  display: grid;
+}
+
+.select select {
+  appearance: none;
+  min-height: var(--tap);
+  padding: 0 2.25rem 0 var(--s3);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  background: var(--sleeve);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.select select:hover {
+  border-color: var(--rule-strong);
+}
+
+.select svg {
+  position: absolute;
+  top: 50%;
+  right: var(--s3);
+  width: 0.875rem;
+  height: 0.875rem;
+  translate: 0 -50%;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.rack-empty {
+  padding: var(--s4) 0;
+  border-top: 1px solid var(--rule);
+}
+
 .source-list,
-.selection,
 .weights,
 .mix-tracks {
   list-style: none;
@@ -199,154 +299,165 @@
   color: var(--ink-3);
 }
 
-/* Selected sources, as catalogue chips that can be struck off. */
-.selection {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2);
-}
-
-.selection li {
-  display: flex;
-  align-items: center;
-  border: 1px solid var(--rule-strong);
-}
-
-.selection li > span {
-  padding: 0.25rem var(--s2);
-  font-size: 0.8125rem;
-}
-
-/* The chips are the rail's key: same numbers, same order, in words. */
-.chip-index {
-  align-self: stretch;
-  display: grid;
-  place-items: center;
-  min-width: 1.5rem;
-  padding: 0 var(--s1);
-  background: var(--stamp);
-  color: var(--stamp-ink);
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-}
-
-.selection li:nth-child(even) .chip-index {
-  background: var(--stamp-deep);
-  color: var(--stamp-deep-ink);
-}
-
-.chip-share {
-  padding-left: 0;
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-3);
-}
-
-.selection button {
-  display: grid;
-  place-items: center;
-  width: 1.75rem;
-  align-self: stretch;
-  border: 0;
-  border-left: 1px solid var(--rule-strong);
-  background: none;
-  color: var(--ink-2);
-  cursor: pointer;
-}
-
-.selection button:hover {
-  background: var(--stamp);
-  color: var(--stamp-ink);
-}
-
-.selection button svg {
-  width: 0.625rem;
-  height: 0.625rem;
-}
-
 /*
  * The share rail. One continuous field reading 100% across, so every weighting
  * mode shows what it actually does instead of naming it. The shares are a linked
  * system: push one and the others move, which is what the rail makes visible.
+ *
+ * It rides in the ticket, so it is drawn on the block: the frame is the block's
+ * edge and the seams are cut in the block's own ground.
  */
 .share-rail {
   display: flex;
   width: 100%;
   height: 2.5rem;
-  border: 1px solid var(--rule-strong);
-  background: var(--board);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--block-edge);
   overflow: hidden;
 }
 
+.share-rail > li + li {
+  border-left: 1px solid var(--block);
+}
+
+/*
+ * A segment is its own legend: index, name, share, and the strike that takes it
+ * out. Each segment carries its fill and ink as properties, so the strike can
+ * invert inside whichever register the segment is in.
+ */
 .share-seg {
+  --seg-fill: var(--stamp);
+  --seg-ink: var(--stamp-ink);
+
   container-type: inline-size;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-width: 1.5rem;
   overflow: hidden;
-  background: var(--stamp);
-  color: var(--stamp-ink);
+  background: var(--seg-fill);
+  color: var(--seg-ink);
   font-family: var(--mono);
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  transition: flex-grow 140ms cubic-bezier(0.19, 1, 0.22, 1);
+  transition: flex-grow 140ms var(--ease-print);
 }
 
 .share-seg:nth-child(even) {
-  background: var(--stamp-deep);
-  color: var(--stamp-deep-ink);
-}
-
-.share-seg + .share-seg {
-  border-left: 1px solid var(--board);
+  --seg-fill: var(--stamp-deep);
+  --seg-ink: var(--stamp-deep-ink);
 }
 
 .share-seg > b {
-  grid-area: 1 / 1;
+  flex: none;
   font-weight: inherit;
 }
 
-.share-seg .seg-index {
+.seg-index {
+  padding: 0 var(--s2);
+}
+
+.seg-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seg-share {
+  padding-right: var(--s2);
+}
+
+.share-seg button {
+  flex: none;
+  place-items: center;
+  align-self: stretch;
+  width: 2rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.share-seg button svg {
+  width: 0.625rem;
+  height: 0.625rem;
+}
+
+.share-seg button:hover {
+  background: var(--seg-ink);
+  color: var(--seg-fill);
+}
+
+.share-seg button:focus-visible {
+  outline: 2px solid var(--seg-ink);
+  outline-offset: -4px;
+}
+
+/*
+ * A segment prints what its width can hold, and substitutes rather than clips:
+ * the index always; the share once there is room for it; the name and the strike
+ * once there is room for a name worth reading. Every source stays removable from
+ * the rack, and its full name and share are on the segment's title.
+ */
+.seg-name,
+.seg-share,
+.share-seg button {
   display: none;
 }
 
-/* Too narrow to print a percentage: the segment falls back to its catalogue index. */
-@container (max-width: 3.25rem) {
-  .share-seg .seg-share {
-    display: none;
-  }
-
-  .share-seg .seg-index {
+@container (min-width: 4.5rem) {
+  .seg-share {
     display: block;
   }
 }
 
-/* Nothing picked yet: the field stays, and says what it is waiting for. */
-.share-rail.waiting {
-  border-color: var(--rule);
+@container (min-width: 10rem) {
+  .seg-name {
+    display: block;
+  }
+
+  .share-seg button {
+    display: grid;
+  }
 }
 
-.share-waiting {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  color: var(--ink-3);
-}
-
-/* A source at zero is drawn as a dark cell, never dropped from the rail. */
+/* A source at zero is drawn as a hollow cell, never dropped from the rail. */
 .share-seg.empty {
+  --seg-fill: transparent;
+  --seg-ink: var(--block-off);
+
   flex: none;
   width: 1.5rem;
-  background: var(--sleeve-lit);
-  color: var(--ink-3);
   font-weight: 400;
+}
+
+.share-rail > li + .share-seg.empty,
+.share-rail > li + .share-slot {
+  border-left-color: var(--block-edge);
+}
+
+/*
+ * The sources the mix still needs, as numbered empty slots: the rail says what
+ * it is waiting for by drawing it, and each slot fills as a source is picked.
+ */
+.share-slot {
+  flex: 50 1 0;
+  display: grid;
+  place-items: center;
+  min-width: 1.5rem;
+  color: var(--block-off);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Custom shares: the rail's own controls, one ruled row each. */
@@ -417,77 +528,177 @@
   color: var(--ink-3);
 }
 
-/* The rule belongs to the legend, so a fieldset border never runs behind its label. */
-.settings-fields fieldset {
-  display: grid;
-  gap: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.settings-fields fieldset > legend {
-  float: left;
-  width: 100%;
-  margin: 0;
-  padding: var(--s3) 0 var(--s1);
-  border-top: 1px solid var(--rule);
-  font-size: 0.8125rem;
-  color: var(--ink-2);
-}
-
-.settings-fields fieldset > legend + * {
-  clear: both;
-}
-
-.settings-fields fieldset .check:first-of-type {
+/* The first row of a block hangs off the block's own rule. */
+.settings-fields > :first-child {
   border-top: 0;
 }
 
-/* Mode options: name, then what it does, on one ruled row. */
-.mode-options {
+/*
+ * A choice among a few: a ruled strip of stamped cells, the chosen one struck in
+ * vermilion. Under it, what the chosen option does, and any field it brings.
+ */
+.segmented {
+  min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
 }
 
-.mode-options legend {
+.settings-fields .segmented {
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--rule);
+}
+
+.settings-fields > .segmented:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Floated, so the fieldset's rule runs above the legend instead of through it. */
+.segmented > legend {
+  float: left;
+  width: 100%;
   padding: 0 0 var(--s2);
   font-size: 0.8125rem;
   color: var(--ink-2);
 }
 
-.mode-options label {
-  display: grid;
-  grid-template-columns: 1.125rem 1fr;
-  align-items: baseline;
-  column-gap: var(--s3);
-  min-height: var(--tap);
-  padding: var(--s3) 0;
-  border-top: 1px solid var(--rule);
-  cursor: pointer;
+.segmented > legend + * {
+  clear: both;
 }
 
-.mode-options label:hover {
+.segments {
+  display: flex;
+  border: 1px solid var(--rule-strong);
+}
+
+/* Equal cells that may wrap a long label rather than push the strip out of its column. */
+.segments label {
+  flex: 1 1 0;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding: var(--s1) var(--s3);
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 90ms linear, color 90ms linear;
+}
+
+.segments label + label {
+  border-left: 1px solid var(--rule-strong);
+}
+
+.segments label:hover {
   background: var(--sleeve);
 }
 
-.mode-options input {
-  align-self: center;
+.segments label:has(input:checked) {
+  background: var(--stamp);
+  color: var(--stamp-ink);
+  font-weight: 600;
 }
 
-.mode-options .source-name {
-  font-weight: 500;
+.segments label:has(input:focus-visible) {
+  position: relative;
+  outline: 2px solid var(--stamp);
+  outline-offset: 2px;
 }
 
-.mode-options .muted {
-  grid-column: 2;
+.segment-count {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.segments label:has(input:checked) .segment-count {
+  color: inherit;
+}
+
+.segmented-hint {
+  margin-top: var(--s2);
+}
+
+/* A field the chosen option brings with it sits under the strip, unruled. */
+.settings-fields .segmented .field {
+  margin-top: var(--s2);
+  padding: 0;
+  border-top: 0;
+}
+
+/*
+ * The settings nobody reaches for, folded into one row. The row still reports
+ * what is in force, so a limit that is on is never out of sight.
+ */
+.more {
+  border-top: 1px solid var(--rule);
+}
+
+.more summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: var(--tap);
   font-size: 0.8125rem;
-  line-height: 1.4;
+  color: var(--ink-2);
+  list-style: none;
+  cursor: pointer;
 }
 
-.order-settings {
-  margin-top: 0;
+.more summary::-webkit-details-marker {
+  display: none;
+}
+
+.more summary:hover {
+  color: var(--ink);
+}
+
+.more-state {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.more-state.on {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.more summary svg {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--ink-3);
+  transition: rotate 140ms var(--ease-print);
+}
+
+.more[open] summary svg {
+  rotate: 180deg;
+}
+
+/* Label, field, unit on one line: the label gives way, the measurement does not. */
+.more .field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+}
+
+.more .field:last-child {
+  margin-bottom: var(--s2);
+}
+
+.weights-hint {
+  margin-top: var(--s2);
 }
 
 /*
@@ -498,13 +709,27 @@
   position: sticky;
   bottom: 0;
   z-index: 1;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'rail rail'
+    'slot actions';
   align-items: center;
-  gap: var(--s4);
+  gap: var(--s3) var(--s4);
   margin-top: var(--s5);
   padding: var(--s3) var(--s4);
   background: var(--block);
   color: var(--block-ink);
+}
+
+.ticket-entry,
+.ticket-status {
+  grid-area: slot;
+}
+
+.ticket-rail {
+  grid-area: rail;
+  min-width: 0;
 }
 
 .ticket-entry {
@@ -555,7 +780,7 @@
 }
 
 .ticket .actions {
-  margin-left: auto;
+  grid-area: actions;
   flex-wrap: nowrap;
 }
 
@@ -713,20 +938,11 @@
   font-weight: 600;
 }
 
+/*
+ * The custom shares keep the phone's two-line row at every width: they live in
+ * the settings column, which is a phone's measure wide even on a desk.
+ */
 @media (min-width: 40rem) {
-  .weights li {
-    grid-template-columns: minmax(0, 10rem) minmax(0, 1fr) 3rem;
-    column-gap: var(--s4);
-  }
-
-  .weights input {
-    grid-column: 2;
-  }
-
-  .weights output {
-    grid-column: 3;
-  }
-
   .ticket-number {
     font-size: 4.25rem;
   }
@@ -756,7 +972,7 @@
 
 /* The wrappers are scaffolding, not boxes: on a phone they disappear entirely. */
 .workbench,
-.params {
+.panel {
   display: contents;
 }
 
@@ -886,85 +1102,69 @@
 }
 
 @media (min-width: 90rem) {
-  /*
-   * The desktop gain is more cells, not fatter ones: a 12rem minimum here bought
-   * slightly larger sleeves and cost 20px a playlist. The board gives the sheet
-   * the width instead, and the mix keeps only what it needs.
-   */
-  .workbench {
-    grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
-  }
-
   /* Spotify's own rule: 4px on small and medium screens, 8px on large. */
   .source-cover {
     border-radius: 8px;
   }
 }
 
-/* The three parameter blocks set as columns of one band. */
-@media (min-width: 40rem) {
-  .params {
+/* On a tablet the settings set as two columns of one band. */
+@media (min-width: 40rem) and (max-width: 63.99rem) {
+  .settings {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: var(--s6);
     align-items: start;
   }
 
-  .params > :last-child {
+  .settings > :last-child {
     grid-column: 1 / -1;
   }
 }
 
 @media (min-width: 64rem) {
-  .params {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .params > :last-child {
-    grid-column: auto;
-  }
-
-  /* The board. The rail and the band span it; the sheet and the mix share it. */
+  /*
+   * The board. The rack takes the width, because picking is the task; the mix
+   * and the settings stand beside it as one column at a phone's measure, which
+   * is the width every control in them was drawn at.
+   */
   .workbench {
     display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-    grid-template-areas:
-      'selected selected'
-      'params   params'
-      'sources  mix';
+    grid-template-columns: minmax(0, 1fr) 21rem;
+    grid-template-areas: 'sources panel';
     column-gap: var(--s6);
     align-items: start;
-  }
-
-  .area-selected {
-    grid-area: selected;
-  }
-
-  .params {
-    grid-area: params;
   }
 
   .area-sources {
     grid-area: sources;
   }
 
-  .area-mix {
-    grid-area: mix;
-    position: sticky;
-    top: var(--s5);
+  .panel {
+    display: block;
+    grid-area: panel;
   }
 
-  /* No mix yet: the sheet takes the whole board rather than keeping a hole. */
-  .workbench:not(:has(.area-mix)) {
-    grid-template-areas:
-      'selected selected'
-      'params   params'
-      'sources  sources';
+  /* The ticket opens into one line: count, the blend, the action. */
+  .ticket {
+    grid-template-columns: minmax(9rem, auto) minmax(0, 1fr) auto;
+    grid-template-areas: 'slot rail actions';
+    column-gap: var(--s5);
   }
 
-  /* Given the width, the field that reads the blend can finally be read. */
   .share-rail {
-    height: 3.25rem;
+    height: 2.75rem;
+  }
+
+  /* The settings are beside the rack now, not under the mix: no jump needed. */
+  .ticket-jump {
+    display: none;
+  }
+}
+
+@media (min-width: 90rem) {
+  .workbench {
+    grid-template-columns: minmax(0, 1fr) 23rem;
   }
 }
 

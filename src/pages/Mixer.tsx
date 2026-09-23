@@ -5,6 +5,7 @@ import DecryptedText from '../components/reactbits/DecryptedText'
 import { forgetRecentSources, noteSourcesMixed, recentSources } from '../app/recentSources'
 import { TEMPORARY_PLAYLIST, playlistUrl, splitLibrary } from '../app/temporaryPlaylist'
 import { StrikeIcon } from '../components/icons'
+import { Segmented, type SegmentedOption } from '../components/Segmented'
 import { SourcePicker } from '../components/SourcePicker'
 import { SpotifyCredit } from '../components/SpotifyCredit'
 import { durationAttr, durationLabel, trackCountLabel, trackCountParts, trackTimeLabel } from '../format'
@@ -36,10 +37,10 @@ const PREVIEW_ROWS = 6
 
 type WeightingMode = Weighting['mode']
 
-const WEIGHTING_MODES: { mode: WeightingMode; label: string; hint: string }[] = [
-  { mode: 'uniform', label: 'Uniform', hint: 'Every track equally likely, so bigger sources play more.' },
-  { mode: 'balanced', label: 'Balanced', hint: 'Every source equally likely, whatever its size.' },
-  { mode: 'custom', label: 'Custom', hint: 'You choose each source’s share.' },
+const WEIGHTING_MODES: SegmentedOption<WeightingMode>[] = [
+  { value: 'uniform', label: 'Uniform', hint: 'Every track equally likely, so bigger sources play more.' },
+  { value: 'balanced', label: 'Balanced', hint: 'Every source equally likely, whatever its size.' },
+  { value: 'custom', label: 'Custom', hint: 'You choose each source’s share.' },
 ]
 
 interface MixerProps {
@@ -374,8 +375,8 @@ export function Mixer({
         <section className="block" data-reveal="" aria-labelledby="leftover-heading">
           <h2 id="leftover-heading">An earlier mix is still in your library</h2>
           <p>
-            &ldquo;{TEMPORARY_PLAYLIST.name}&rdquo; is left from an earlier visit. Remove it, or keep it and your
-            next mix will replace it.
+            &ldquo;{TEMPORARY_PLAYLIST.name}&rdquo; is left from an earlier visit. Remove it now, or leave it and
+            your next mix will replace it.
           </p>
           <p className="actions">
             <button
@@ -385,9 +386,6 @@ export function Mixer({
               onClick={() => sendMix.cleanUp()}
             >
               Remove it
-            </button>
-            <button className="button" type="button" disabled={sendMix.busy || loggingOut} onClick={sendMix.keepLeftover}>
-              Keep it
             </button>
           </p>
         </section>
@@ -404,103 +402,12 @@ export function Mixer({
           </p>
         ))}
 
-      <div className="workbench">
       {/*
-       * The blend comes before the rack, on every width.
-       *
-       * On the board this was already so — the grid puts `selected` on the first
-       * row — but in the stack the rack came first, so the one object that says
-       * what you have chosen sat *below* the whole library. With a rack of two
-       * hundred that is a dozen screens between a tap and its only confirmation.
-       * Areas are placed by name, so the board is untouched by this order.
+       * The board: the rack takes the width, because picking is what the visitor
+       * came to do, and the settings stand beside it as one narrow column. On a
+       * phone both wrappers dissolve and the same blocks stack.
        */}
-      <section className="block area-selected" data-reveal="" aria-labelledby="selection-heading">
-        <h2 id="selection-heading">Selected</h2>
-        {/*
-         * The share rail: one field reading 100% across. Uniform, balanced and custom
-         * are the same mechanism with different weights, so they all read here. An
-         * empty selection keeps the field and says what it needs, rather than
-         * replacing the object with a sentence.
-         */}
-        <div
-          className={selected.length === 0 ? 'share-rail waiting' : 'share-rail'}
-          role="img"
-          aria-label={
-            selected.length === 0
-              ? `No sources selected. Pick at least ${MIN_SOURCES} to build a mix.`
-              : railLabel(selected, railShares)
-          }
-        >
-          {selected.length === 0 ? (
-            <span className="share-waiting">Pick at least {MIN_SOURCES}</span>
-          ) : (
-            selected.map((source, index) => {
-              const share = railShares[source.id] ?? 0
-              return (
-                <span
-                  key={source.id}
-                  className={share === 0 ? 'share-seg empty' : 'share-seg'}
-                  style={share === 0 ? undefined : { flexGrow: share }}
-                >
-                  <b className="seg-index">{index + 1}</b>
-                  <b className="seg-share">{share}%</b>
-                </span>
-              )
-            })
-          )}
-        </div>
-        {selected.length > 0 && (
-          <ul className="selection">
-            {selected.map((source, index) => (
-              <li key={source.id}>
-                <span className="chip-index" aria-hidden="true">
-                  {index + 1}
-                </span>
-                <span>{source.name}</span>
-                <span className="chip-share" aria-hidden="true">
-                  {railShares[source.id] ?? 0}%
-                </span>
-                <button type="button" aria-label={`Remove ${source.name}`} onClick={() => deselect(source.id)}>
-                  <StrikeIcon />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {/*
-         * The custom shares are the rail's own controls, not a sub-setting of the
-         * weighting radio: a slider belongs beside the segment it moves.
-         */}
-        {weightingMode === 'custom' && selected.length > 0 && (
-          <>
-            <ul className="weights">
-              {selected.map((source) => {
-                const share = shares[source.id] ?? 0
-                return (
-                  <li key={source.id}>
-                    <label htmlFor={`weight-${source.id}`}>{source.name}</label>
-                    <input
-                      id={`weight-${source.id}`}
-                      type="range"
-                      min={0}
-                      max={100}
-                      step={1}
-                      value={share}
-                      aria-valuetext={`${share}%`}
-                      onChange={(event) => setShares(setShare(shares, source.id, Number(event.target.value)))}
-                    />
-                    <output htmlFor={`weight-${source.id}`}>{share}%</output>
-                  </li>
-                )
-              })}
-            </ul>
-            <p className="hint">
-              Shares always add up to 100%. When a source runs out, the rest keep their proportions.
-            </p>
-          </>
-        )}
-      </section>
-
+      <div className="workbench">
       <section className="block area-sources" data-reveal="" aria-labelledby="sources-heading">
         <h2 id="sources-heading">Sources</h2>
         {loadFailed ? (
@@ -520,37 +427,62 @@ export function Mixer({
         )}
       </section>
 
+      <div className="panel">
       {mixSection}
 
-      <div className="params">
+      <div className="settings" id="mix-settings">
       <PoolSettings form={poolForm} onChange={setPoolForm} />
 
       <section className="block" data-reveal="" aria-labelledby="weighting-heading">
         <h2 id="weighting-heading">Weighting</h2>
-        <fieldset className="mode-options">
-          <legend>How often each source plays</legend>
-          {WEIGHTING_MODES.map(({ mode, label, hint }) => (
-            <label key={mode}>
-              <input
-                type="radio"
-                name="weighting"
-                value={mode}
-                checked={weightingMode === mode}
-                onChange={() => setWeightingMode(mode)}
-              />
-              <span className="source-name">{label}</span>
-              <span className="muted">{hint}</span>
-            </label>
+        <div className="settings-fields">
+          <Segmented
+            legend="How often each source plays"
+            name="weighting"
+            options={WEIGHTING_MODES}
+            value={weightingMode}
+            onChange={setWeightingMode}
+          />
+        </div>
+        {/*
+         * The custom shares sit with the mode that asks for them. The rail in the
+         * ticket moves as they do, so the linked field is still one glance away.
+         */}
+        {weightingMode === 'custom' &&
+          (selected.length === 0 ? (
+            <p className="hint weights-hint">Select sources to set their shares.</p>
+          ) : (
+            <>
+              <ul className="weights">
+                {selected.map((source) => {
+                  const share = shares[source.id] ?? 0
+                  return (
+                    <li key={source.id}>
+                      <label htmlFor={`weight-${source.id}`}>{source.name}</label>
+                      <input
+                        id={`weight-${source.id}`}
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={share}
+                        aria-valuetext={`${share}%`}
+                        onChange={(event) => setShares(setShare(shares, source.id, Number(event.target.value)))}
+                      />
+                      <output htmlFor={`weight-${source.id}`}>{share}%</output>
+                    </li>
+                  )
+                })}
+              </ul>
+              <p className="hint weights-hint">
+                Shares always add up to 100%. When a source runs out, the rest keep their proportions.
+              </p>
+            </>
           ))}
-        </fieldset>
-        {weightingMode === 'custom' && (
-          <p className="hint">
-            {selected.length === 0 ? 'Select sources to set their shares.' : 'Set each share on the rail above.'}
-          </p>
-        )}
       </section>
 
       <OrderSettings form={orderForm} onChange={setOrderForm} />
+      </div>
       </div>
       </div>
 
@@ -595,6 +527,39 @@ export function Mixer({
         ) : (
           <p className="ticket-status">{blockedReason(selected.length, pool, order)}</p>
         )}
+        {/*
+         * The share rail rides in the ticket: the blend is read beside the count
+         * and the action, wherever the rack has been scrolled to. Each segment is
+         * its own legend — index, name, share — and can be struck off in place.
+         * Absence is drawn: the sources the mix still needs are empty slots.
+         */}
+        <section className="ticket-rail" aria-label="Selected">
+          <ol className="share-rail" aria-label="Source shares">
+            {selected.map((source, index) => {
+              const share = railShares[source.id] ?? 0
+              return (
+                <li
+                  key={source.id}
+                  className={share === 0 ? 'share-seg empty' : 'share-seg'}
+                  style={share === 0 ? undefined : { flexGrow: share }}
+                  title={`${source.name} · ${share}%`}
+                >
+                  <b className="seg-index">{index + 1}</b>
+                  <span className="seg-name">{source.name}</span>
+                  <b className="seg-share">{share}%</b>
+                  <button type="button" aria-label={`Remove ${source.name}`} onClick={() => deselect(source.id)}>
+                    <StrikeIcon />
+                  </button>
+                </li>
+              )
+            })}
+            {Array.from({ length: Math.max(0, MIN_SOURCES - selected.length) }, (_, index) => (
+              <li key={`slot-${index}`} className="share-slot" aria-hidden="true">
+                {selected.length + index + 1}
+              </li>
+            ))}
+          </ol>
+        </section>
         <p className="actions">
           {mix && (
             <a className="ticket-jump" href="#mix-settings">
@@ -684,12 +649,6 @@ function useCountUp(target: number | null, node: RefObject<HTMLElement | null>) 
 /** This mix's entry in the catalogue, from the seed that produced it. */
 function catalogueNumber(seed: number): string {
   return `RND-${Math.abs(seed).toString(36).toUpperCase().padStart(6, '0').slice(-6)}`
-}
-
-/** The share rail's picture, in words, for anyone who can't see the field. */
-function railLabel(sources: Source[], shares: Shares): string {
-  const parts = sources.map((source) => `${source.name} ${shares[source.id] ?? 0}%`)
-  return `Share of the mix: ${parts.join(', ')}`
 }
 
 /** What the ticket says while Generate can't run: the count's slot, not an empty one. */

@@ -23,7 +23,7 @@ export function useSendMix(gateway: SpotifyGateway, knownPlaylistId: string | nu
   const [state, setState] = useState<SendState>({ step: 'idle' })
   const [cleanup, setCleanup] = useState<CleanupState>('idle')
   // The temporary playlist as this session knows it: undefined until the session
-  // sends to it, keeps it or removes it, and `knownPlaylistId` stands in meanwhile.
+  // sends to it or removes it, and `knownPlaylistId` stands in meanwhile.
   const [ownId, setOwnIdState] = useState<string | null | undefined>(undefined)
   const ownIdRef = useRef(ownId)
   // Bumped by `reset`, so a send that's still running no longer updates what the user sees.
@@ -82,7 +82,7 @@ export function useSendMix(gateway: SpotifyGateway, knownPlaylistId: string | nu
     busy,
     /** The temporary playlist in the user's library, if there is one; undefined while that's unknown. */
     playlistId,
-    /** Whether the temporary playlist is one from an earlier visit this session hasn't used or kept yet. */
+    /** Whether the temporary playlist is one from an earlier visit this session hasn't used yet. */
     isLeftover: ownId === undefined && Boolean(knownPlaylistId),
     /** Writes the tracks to the temporary playlist, then starts playing it. */
     send(trackIds: string[]) {
@@ -121,10 +121,6 @@ export function useSendMix(gateway: SpotifyGateway, knownPlaylistId: string | nu
       if (state.step !== 'sent') return
       const run = ++version.current
       queue.current = queue.current.then(() => play(state.playlistId, run))
-    },
-    /** Keeps a leftover temporary playlist: the session takes it as its own. */
-    keepLeftover() {
-      if (knownPlaylistId) setOwnId(knownPlaylistId)
     },
     /**
      * Removes the temporary playlist from the user's library, once any send in

@@ -19,6 +19,15 @@ export function StrikeIcon() {
   )
 }
 
+/** Marks a closed group of settings that opens downwards. */
+export function ChevronIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" {...stroke}>
+      <path d="M4 6.5 8 10.5 12 6.5" />
+    </svg>
+  )
+}
+
 /** Opens something in Spotify. */
 export function OpenIcon() {
   return (

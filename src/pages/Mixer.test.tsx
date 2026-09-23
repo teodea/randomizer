@@ -172,9 +172,8 @@ describe('Mixer', () => {
 
     await screen.findByText('44 tracks')
     // Balanced: the rail gives the small source the same share as the big one.
-    expect(screen.getByRole('img', { name: /share of the mix/i })).toHaveAccessibleName(
-      /Morning 50%, Evening 50%/i,
-    )
+    const rail = within(screen.getByRole('list', { name: /source shares/i }))
+    expect(rail.getAllByRole('listitem').map((item) => item.textContent)).toEqual(['1Morning50%', '2Evening50%'])
   })
 
   it('uses uniform weighting by default', async () => {
@@ -210,25 +209,26 @@ describe('Mixer', () => {
       await user.click(screen.getByRole('checkbox', { name: /evening/i }))
     }
 
-    it('uses every track, duplicates included, by default', async () => {
+    it('uses every eligible track, with duplicates across sources removed, by default', async () => {
       const user = renderMixer(poolGateway())
       await selectBoth(user)
 
       expect(screen.getByRole('radio', { name: /all eligible tracks/i })).toBeChecked()
+      expect(screen.getByRole('checkbox', { name: /remove duplicates/i })).toBeChecked()
       await user.click(screen.getByRole('button', { name: /generate/i }))
 
-      expect(await screen.findByText('7 tracks')).toBeInTheDocument()
+      expect(await screen.findByText('6 tracks')).toBeInTheDocument()
+      expect(mixOrder().filter((line) => line?.startsWith('Song shared'))).toHaveLength(1)
     })
 
-    it('removes duplicates across sources', async () => {
+    it('keeps duplicates when asked to', async () => {
       const user = renderMixer(poolGateway())
       await selectBoth(user)
 
       await user.click(screen.getByRole('checkbox', { name: /remove duplicates/i }))
       await user.click(screen.getByRole('button', { name: /generate/i }))
 
-      expect(await screen.findByText('6 tracks')).toBeInTheDocument()
-      expect(mixOrder().filter((line) => line?.startsWith('Song shared'))).toHaveLength(1)
+      expect(await screen.findByText('7 tracks')).toBeInTheDocument()
     })
 
     it('filters out explicit tracks and tracks outside the duration limits', async () => {
@@ -236,11 +236,14 @@ describe('Mixer', () => {
       await selectBoth(user)
 
       await user.click(screen.getByRole('checkbox', { name: /skip explicit/i }))
+      await user.click(screen.getByText('Duration limits'))
       await user.type(screen.getByRole('spinbutton', { name: /shorter than/i }), '1')
       await user.type(screen.getByRole('spinbutton', { name: /longer than/i }), '8')
+      // Folded away, the limits in force still show on the closed row.
+      expect(screen.getByText('1–8 min')).toBeInTheDocument()
       await user.click(screen.getByRole('button', { name: /generate/i }))
 
-      expect(await screen.findByText('4 tracks')).toBeInTheDocument()
+      expect(await screen.findByText('3 tracks')).toBeInTheDocument()
       expect(mixOrder().join(' ')).not.toMatch(/Song (intro|epic|rude)/)
     })
 
@@ -392,6 +395,48 @@ describe('Mixer', () => {
     await user.clear(screen.getByRole('searchbox', { name: /search/i }))
     await user.type(screen.getByRole('searchbox', { name: /search/i }), 'zzz')
     expect(screen.getByText(/no playlists match/i)).toBeInTheDocument()
+  })
+
+  it('narrows the sources to the ones the user made, or the ones others made', async () => {
+    const user = renderMixer(
+      createFakeGateway([
+        fakeSource('m', 'Morning', 6, { ownedByUser: true }),
+        fakeSource('e', 'Evening', 4),
+        fakeSource('w', 'Weekend', 3),
+      ]),
+    )
+
+    await user.click(await screen.findByRole('checkbox', { name: /evening/i }))
+    expect(screen.getByRole('radio', { name: /anyone/i })).toBeChecked()
+
+    await user.click(screen.getByRole('radio', { name: /^me/i }))
+    expect(screen.getByRole('checkbox', { name: /morning/i })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /evening/i })).not.toBeInTheDocument()
+    expect(selection().getByText('Evening')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: /others/i }))
+    expect(screen.queryByRole('checkbox', { name: /morning/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /evening/i })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /weekend/i })).toBeInTheDocument()
+  })
+
+  it('lists the sources in library order, and sorts them by name or by size on request', async () => {
+    // Nothing mixed before on this device, so the default ranking is the library's own order.
+    localStorage.clear()
+    const user = renderMixer(
+      createFakeGateway([fakeSource('w', 'Weekend', 3), fakeSource('m', 'Morning', 6), fakeSource('e', 'evening', 4)]),
+    )
+    // Every spine carries its back-link to Spotify, so the links read the rack in order.
+    const rack = async () =>
+      (await screen.findAllByRole('link', { name: /^open .* on spotify$/i })).map((link) =>
+        link.getAttribute('aria-label')!.replace(/^Open (.*) on Spotify$/, '$1'),
+      )
+
+    expect(await rack()).toEqual(['Weekend', 'Morning', 'evening'])
+    await user.selectOptions(screen.getByRole('combobox', { name: /sort/i }), 'Name, A–Z')
+    expect(await rack()).toEqual(['evening', 'Morning', 'Weekend'])
+    await user.selectOptions(screen.getByRole('combobox', { name: /sort/i }), 'Most tracks')
+    expect(await rack()).toEqual(['Morning', 'evening', 'Weekend'])
   })
 
   it('marks a source whose tracks cannot be read as unavailable and mixes the rest', async () => {

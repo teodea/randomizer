@@ -153,19 +153,6 @@ describe('a temporary playlist left from an earlier visit', () => {
     expect(await userPlaylists(gateway)).toEqual(before)
   })
 
-  it('stays when the user keeps it, and can be cleaned up later', async () => {
-    const gateway = createFakeGateway([...library(), leftover()])
-    const { user } = renderSpotifyMixer(gateway)
-
-    await user.click(await screen.findByRole('button', { name: 'Keep it' }))
-
-    expect(screen.queryByRole('region', { name: /earlier mix/i })).not.toBeInTheDocument()
-    expect(await ids(gateway)).toContain('old-mix')
-    await user.click(screen.getByRole('button', { name: 'Clean up' }))
-    await screen.findByText(/removed .* from your library/i)
-    expect(await ids(gateway)).not.toContain('old-mix')
-  })
-
   it('is no longer offered for removal once a mix is sent to it', async () => {
     const gateway = createFakeGateway([...library(), leftover()])
     const { user } = renderSpotifyMixer(gateway)
