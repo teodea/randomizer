@@ -16,3 +16,16 @@ export class SessionExpiredError extends Error {
     this.name = 'SessionExpiredError'
   }
 }
+
+/**
+ * Spotify refuses this account: it isn't on the app's invite list. A bare 403
+ * never says which no it is — a private playlist, a restricted endpoint and an
+ * uninvited account all look alike — so this is thrown only when `/me` itself
+ * is refused, which has no other reading.
+ */
+export class NotInvitedError extends Error {
+  constructor() {
+    super('This Spotify account is not on the invite list')
+    this.name = 'NotInvitedError'
+  }
+}

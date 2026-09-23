@@ -1,4 +1,4 @@
-import { SessionExpiredError, SourceUnavailableError } from './errors'
+import { NotInvitedError, SessionExpiredError, SourceUnavailableError } from './errors'
 import type { PlaybackOutcome, PlaybackState, SpotifyGateway } from './gateway'
 import type { Source, Track } from './types'
 
@@ -133,6 +133,41 @@ export function createWebGateway({
     return all
   }
 
+  /**
+   * The user's profile. Spotify refuses this one for a single reason — the
+   * account isn't on the app's invite list — which makes it the only question
+   * whose answer is unambiguous.
+   */
+  async function getMe(): Promise<{ id: string }> {
+    const url = `${API}/me`
+    const response = await request(url)
+    if (response.status === 403) throw new NotInvitedError()
+    if (!response.ok) throw new HttpError(response.status, url)
+    return (await response.json()) as { id: string }
+  }
+
+  /** One check is enough for every caller that hit a 403 at the same moment. */
+  let invited: Promise<void> | null = null
+
+  /**
+   * Asks whether the account is still invited, after some other call came back
+   * 403. Throws `NotInvitedError` when it isn't; any other outcome leaves the
+   * question open and says nothing, so the caller's narrower reading stands.
+   */
+  async function confirmStillInvited(): Promise<void> {
+    invited ??= getMe()
+      .then(
+        () => undefined,
+        (error: unknown) => {
+          if (error instanceof NotInvitedError) throw error
+        },
+      )
+      .finally(() => {
+        invited = null
+      })
+    return invited
+  }
+
   async function readTracks<T>(sourceId: string, url: string, toTrack: (entry: T) => ApiTrack | null) {
     try {
       const entries = await getAll<T>(url)
@@ -142,6 +177,10 @@ export function createWebGateway({
       })
     } catch (error) {
       if (error instanceof HttpError && (error.status === 403 || error.status === 404)) {
+        // A 403 here reads as "not this playlist" — but it reads the same when
+        // the account has been taken off the invite list, and then blaming the
+        // playlist would be confidently wrong. Ask before saying it.
+        if (error.status === 403) await confirmStillInvited()
         throw new SourceUnavailableError(sourceId)
       }
       throw error
@@ -169,10 +208,15 @@ export function createWebGateway({
     async listSources(): Promise<Source[]> {
       const [me, liked, playlists] = await Promise.all([
         // Playlists name their owner by `id`, so that's what to compare, not `account_id`.
-        getJson<{ id: string }>(`${API}/me`),
+        getMe(),
         getJson<Paging<ApiSavedTrack>>(`${API}/me/tracks?limit=1`),
         getAll<ApiPlaylist>(`${API}/me/playlists?limit=${PAGE_SIZE}`),
-      ])
+      ]).catch(async (error: unknown) => {
+        // An account off the invite list makes all three fail at once, and
+        // whichever loses the race would otherwise decide the message.
+        if (error instanceof HttpError && error.status === 403) await confirmStillInvited()
+        throw error
+      })
       const likedSongs: Source = {
         id: LIKED_SONGS_ID,
         name: 'Liked Songs',

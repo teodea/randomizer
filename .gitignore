@@ -28,3 +28,6 @@ dist-ssr
 PRODUCT.md
 DESIGN.md
 .impeccable/
+
+# Agent tooling, same reason
+.claude/

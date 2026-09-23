@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SessionExpiredError, SourceUnavailableError } from './errors'
+import { NotInvitedError, SessionExpiredError, SourceUnavailableError } from './errors'
 import { LIKED_SONGS_ID, createWebGateway } from './webGateway'
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
@@ -113,6 +113,12 @@ describe('real Spotify gateway: sources', () => {
     expect(requests.filter((url) => url.pathname === '/v1/me/playlists')).toHaveLength(3)
   })
 
+  it('reports an account that has been taken off the invite list', async () => {
+    const { gateway } = setup(() => json({ error: { status: 403 } }, 403))
+
+    await expect(gateway.listSources()).rejects.toBeInstanceOf(NotInvitedError)
+  })
+
   it('copes with the older playlist shape, missing images and empty slots', async () => {
     const { gateway } = setup((url) => {
       if (url.pathname === '/v1/me/playlists')
@@ -212,13 +218,44 @@ describe('real Spotify gateway: tracks', () => {
 
   it.each([403, 404])('reports a playlist Spotify answers with %i for as unavailable', async (status) => {
     const { gateway } = setup((url) =>
-      url.pathname === '/v1/playlists/p1/items' ? json({ error: { status, message: 'Forbidden' } }, status) : undefined,
+      url.pathname === '/v1/playlists/p1/items'
+        ? json({ error: { status, message: 'Forbidden' } }, status)
+        : url.pathname === '/v1/me'
+          ? json({ id: 'ada' })
+          : undefined,
     )
 
     const attempt = gateway.getSourceTracks('p1')
 
     await expect(attempt).rejects.toBeInstanceOf(SourceUnavailableError)
     await expect(attempt).rejects.toMatchObject({ sourceId: 'p1' })
+  })
+
+  it('blames the invite list, not the playlist, when the account itself is refused', async () => {
+    const { gateway, requests } = setup(() => json({ error: { status: 403, message: 'Forbidden' } }, 403))
+
+    await expect(gateway.getSourceTracks('p1')).rejects.toBeInstanceOf(NotInvitedError)
+    expect(requests.some((url) => url.pathname === '/v1/me')).toBe(true)
+  })
+
+  it('asks who the user is only once when several sources are refused at the same time', async () => {
+    const { gateway, requests } = setup(() => json({ error: { status: 403 } }, 403))
+
+    await Promise.allSettled([gateway.getSourceTracks('p1'), gateway.getSourceTracks('p2')])
+
+    expect(requests.filter((url) => url.pathname === '/v1/me')).toHaveLength(1)
+  })
+
+  it('still calls a playlist unavailable when the check itself fails', async () => {
+    const { gateway } = setup((url) =>
+      url.pathname === '/v1/playlists/p1/items'
+        ? json({ error: { status: 403 } }, 403)
+        : url.pathname === '/v1/me'
+          ? json({ error: { status: 500 } }, 500)
+          : undefined,
+    )
+
+    await expect(gateway.getSourceTracks('p1')).rejects.toBeInstanceOf(SourceUnavailableError)
   })
 })
 

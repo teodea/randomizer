@@ -1,15 +1,23 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router'
 import { useServices, type Notice } from '../app/services'
 import { removeTemporaryPlaylist } from '../app/temporaryPlaylist'
 
-const NOTICES: Record<Notice, { text: string; urgent: boolean }> = {
+const NOTICES: Record<Notice, { text: ReactNode; urgent: boolean }> = {
   expired: { text: 'Your Spotify session has expired. Log in again to continue.', urgent: true },
-  'not-invited': {
-    text: 'Randomizer is invite-only, and this Spotify account isn’t on the invite list. Spotify only lets the accounts the owner has added use an app like this. The demo works without an account.',
+  /*
+   * Spotify sends back the same answer whether the user pressed cancel or was
+   * turned away, so this says what happened and not whose doing it was.
+   */
+  denied: {
+    text: (
+      <>
+        The login didn’t go through on Spotify. Log in again whenever you like — or read why{' '}
+        <Link to="/invite-only">login is invite-only</Link>, if you didn’t cancel it yourself.
+      </>
+    ),
     urgent: true,
   },
-  denied: { text: 'You cancelled the login on Spotify. Log in again whenever you like.', urgent: true },
   failed: { text: 'The login didn’t work. Please try again.', urgent: true },
   'logged-out': {
     text: 'You’re logged out. Randomizer no longer has access to your Spotify account on this device.',
@@ -131,7 +139,8 @@ export function Landing() {
         )}
         <p className="hint">
           Login is limited to invited users. While an app like this is in development, Spotify lets
-          at most five accounts use it. Not invited? The demo shows how mixing works.
+          at most five accounts use it. Not invited? <Link to="/invite-only">Here&rsquo;s what that means</Link>,
+          and the demo shows how mixing works.
         </p>
         <p className="hint">
           Before logging in, read the <Link to="/privacy">Privacy policy</Link> and the{' '}

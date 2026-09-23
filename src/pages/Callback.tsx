@@ -22,7 +22,13 @@ export function Callback() {
     auth.completeLogin(params).then(
       () => navigate('/mix', { replace: true }),
       (error: unknown) => {
-        const notice: Notice = error instanceof LoginError ? error.reason : 'failed'
+        const reason = error instanceof LoginError ? error.reason : 'failed'
+        // A refusal isn't a line on the home page: it needs a page that explains it.
+        if (reason === 'not-invited') {
+          navigate('/invite-only', { replace: true })
+          return
+        }
+        const notice: Notice = reason
         navigate('/', { replace: true, state: { notice } })
       },
     )

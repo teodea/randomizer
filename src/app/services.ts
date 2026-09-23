@@ -33,5 +33,8 @@ export function useServices(): Services {
   return useContext(ServicesContext)
 }
 
-/** Why the user landed back on the home page, shown there as a message. */
-export type Notice = LoginFailure | 'expired' | 'logged-out'
+/**
+ * Why the user landed back on the home page, shown there as a message. Being
+ * refused isn't one of these: that has a page of its own, at `/invite-only`.
+ */
+export type Notice = Exclude<LoginFailure, 'not-invited'> | 'expired' | 'logged-out'

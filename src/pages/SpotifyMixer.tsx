@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { Navigate, useNavigate } from 'react-router'
 import { useServices, type Notice } from '../app/services'
 import type { Auth } from '../spotify/auth'
-import { SessionExpiredError } from '../spotify/errors'
+import { NotInvitedError, SessionExpiredError } from '../spotify/errors'
 import type { SpotifyGateway } from '../spotify/gateway'
 import { Mixer } from './Mixer'
 
@@ -26,7 +26,18 @@ function LoggedInMixer({ auth }: { auth: Auth }) {
     [auth, navigate],
   )
 
-  const gateway = useMemo(() => guardSession(createGateway(auth), () => leave('expired')), [auth, createGateway, leave])
+  /** Ends the session and explains the refusal on its own page. */
+  const refused = useCallback(() => {
+    auth.logout()
+    // `removed`, not a plain visit: this one was inside a minute ago and may
+    // have left a playlist behind that the app can no longer clean up.
+    navigate('/invite-only?removed', { replace: true })
+  }, [auth, navigate])
+
+  const gateway = useMemo(
+    () => guardAccess(createGateway(auth), { onExpired: () => leave('expired'), onRefused: refused }),
+    [auth, createGateway, leave, refused],
+  )
 
   return (
     <Mixer
@@ -39,14 +50,20 @@ function LoggedInMixer({ auth }: { auth: Auth }) {
 }
 
 /**
- * Calls `onExpired` when the session turns out to be over. The failed call then
- * never settles, so the page doesn't flash an error while the user is sent away.
+ * Catches the two failures that end the visit rather than interrupt it: the
+ * session being over, and the account being off the invite list. The failed
+ * call then never settles, so the page doesn't flash an error while the user
+ * is sent away.
  */
-function guardSession(gateway: SpotifyGateway, onExpired: () => void): SpotifyGateway {
+function guardAccess(
+  gateway: SpotifyGateway,
+  { onExpired, onRefused }: { onExpired: () => void; onRefused: () => void },
+): SpotifyGateway {
   const guard = <T,>(promise: Promise<T>) =>
     promise.catch((error: unknown): Promise<T> => {
-      if (!(error instanceof SessionExpiredError)) throw error
-      onExpired()
+      if (error instanceof SessionExpiredError) onExpired()
+      else if (error instanceof NotInvitedError) onRefused()
+      else throw error
       return new Promise<T>(() => {})
     })
   return {
