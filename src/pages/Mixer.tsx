@@ -328,7 +328,8 @@ export function Mixer({
   )
 
   return (
-    <main className="page" ref={pageRef}>
+    // While the ticket carries its back-to-top tab, the settings column stops above it.
+    <main className="page" ref={pageRef} data-rack-away={rackAway || undefined}>
       <div className="rail">
         <Link className="rail-mark" to="/">
           Randomizer

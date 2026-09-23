@@ -1198,11 +1198,18 @@
     top: 0;
     max-height: calc(100dvh - var(--ticket-height, 6rem));
     margin: 0 calc(-1 * var(--s1));
-    /* The foot clears the ticket's back-to-top tab, which hangs over this column. */
-    padding: 0 var(--s1) calc(2.75rem + var(--s3));
+    padding: 0 var(--s1) var(--s5);
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
+  }
+
+  /*
+   * The ticket's back-to-top tab hangs over this column's foot. While it is
+   * there the column stops above it too, so no control scrolls under the tab.
+   */
+  [data-rack-away] .panel {
+    max-height: calc(100dvh - var(--ticket-height, 6rem) - 2.75rem);
   }
 
   /* The ticket opens into one line: count, the blend, the action. */
