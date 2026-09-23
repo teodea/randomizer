@@ -36,6 +36,13 @@ export default defineConfig({
     strictPort: true,
   },
   test: {
+    // jsdom is held at 26 in package.json. From 27 on, getComputedStyle — which
+    // Testing Library calls for every element whose accessible name it works out,
+    // so on every getByRole({ name }) — costs about twice as much, and the page
+    // tests take about twice the CPU (the four heaviest files: ~37s on 26, ~70s on
+    // 27, ~64s on 30). On a busy machine that pushed the first test of a file,
+    // which also pays the worker's cold start, past the 5s timeout. Before moving
+    // jsdom up, check that a newer release no longer costs that much.
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
   },
