@@ -44,6 +44,10 @@ export default defineConfig({
     // which also pays the worker's cold start, past the 5s timeout. Before moving
     // jsdom up, check that a newer release no longer costs that much.
     environment: 'jsdom',
+    // Even on 26, the first page test of a file (a whole generate-and-send flow,
+    // run on a cold worker) takes ~1.5s on a quiet machine and has reached ~4s on
+    // a loaded one, too close to the default 5s. A hung test still fails, just later.
+    testTimeout: 10_000,
     setupFiles: ['./src/test-setup.ts'],
   },
 })
