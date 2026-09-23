@@ -1140,9 +1140,25 @@
     grid-area: sources;
   }
 
+  /*
+   * The settings follow the reader down the rack and settle back into place on
+   * the way up: sticky, with the page's own position as the floor. The column
+   * never runs under the ticket — it stops at the ticket's measured height — and
+   * when it holds more than that (a mix, the custom shares) it scrolls inside
+   * itself, the way the rack's window does on a phone. The small inline pad keeps
+   * the focus ring of a full-width control from being cut by the scroll edge.
+   */
   .panel {
     display: block;
     grid-area: panel;
+    position: sticky;
+    top: 0;
+    max-height: calc(100dvh - var(--ticket-height, 6rem));
+    margin: 0 calc(-1 * var(--s1));
+    padding: 0 var(--s1) var(--s5);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
   }
 
   /* The ticket opens into one line: count, the blend, the action. */

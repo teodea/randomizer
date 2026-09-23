@@ -89,6 +89,8 @@ export function Mixer({
   // Bumped whenever the selection changes, so a mix built for an older selection is discarded.
   const selectionVersion = useRef(0)
   const countRef = useRef<HTMLSpanElement>(null)
+  const pageRef = useRef<HTMLElement>(null)
+  const ticketRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let active = true
@@ -272,6 +274,7 @@ export function Mixer({
   const sendable = canSend && mix !== null && mix.length > 0
   const runningMs = mix ? mix.reduce((total, { track }) => total + track.durationMs, 0) : 0
   useCountUp(mix ? mix.length : null, countRef)
+  useTicketHeight(ticketRef, pageRef)
 
   /*
    * The mix sits directly under the share rail, above the settings that shape it:
@@ -321,7 +324,7 @@ export function Mixer({
   )
 
   return (
-    <main className="page">
+    <main className="page" ref={pageRef}>
       <div className="rail">
         <Link className="rail-mark" to="/">
           Randomizer
@@ -499,7 +502,7 @@ export function Mixer({
        * The ticket. It stays with the listener, so pressing Generate produces
        * something visible and reachable instead of a change below the fold.
        */}
-      <div className="ticket">
+      <div className="ticket" ref={ticketRef}>
         {/*
          * The count is the entry: the numeral at catalogue scale, its unit and the
          * running time as the label beside it. Before there is a mix, the same slot
@@ -644,6 +647,25 @@ function useCountUp(target: number | null, node: RefObject<HTMLElement | null>) 
     })
     return () => cancelAnimationFrame(frame)
   }, [target, node])
+}
+
+/**
+ * Publishes the ticket's height on the page as `--ticket-height`, so the settings
+ * column can stop where the ticket starts instead of sliding under it. The ticket
+ * changes height as it fills — a waiting status, then a count at catalogue scale —
+ * so it is measured, not guessed.
+ */
+function useTicketHeight(ticket: RefObject<HTMLElement | null>, page: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const ticketNode = ticket.current
+    const pageNode = page.current
+    if (!ticketNode || !pageNode || typeof ResizeObserver !== 'function') return
+    const observer = new ResizeObserver(() => {
+      pageNode.style.setProperty('--ticket-height', `${ticketNode.offsetHeight}px`)
+    })
+    observer.observe(ticketNode)
+    return () => observer.disconnect()
+  }, [ticket, page])
 }
 
 /** This mix's entry in the catalogue, from the seed that produced it. */
